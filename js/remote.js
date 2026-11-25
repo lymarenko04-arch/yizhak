@@ -2,7 +2,7 @@
 // Правила (ліміти броней, коди, хто що бачить) перевіряє сама база: supabase/schema.sql.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
 import { CONFIG, CITIES } from './config.js';
-import { geocode } from './local.js';
+import { resolvePlace, okPoint } from './local.js';
 
 const sb = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: 'yizhak.auth' },
@@ -111,13 +111,17 @@ export const remoteApi = {
     for (const k of ['name', 'type', 'city', 'address', 'phone']) if (!String(data[k] || '').trim()) fail('Заповніть усі поля магазину.');
     const cur = await myShop();
     const row = { name: data.name.trim(), type: data.type, city: data.city, address: data.address.trim(), phone: data.phone.trim(), halal: !!data.halal };
-    if (!cur || cur.address !== row.address || cur.city !== row.city) {
-      const [lat, lng, exact] = await geocode(row.address, row.city);
-      Object.assign(row, { lat, lng, geo_exact: exact });
-    }
+    if (!cur || cur.address !== row.address || cur.city !== row.city) Object.assign(row, await resolvePlace(row.address, row.city));
     shopCache = cur
       ? ok(await sb.from('shops').update(row).eq('id', cur.id).select().single())
       : ok(await sb.from('shops').insert({ ...row, owner_id: id }).select().single());
+    return shopCache;
+  },
+
+  async setShopPoint(lat, lng) {
+    okPoint(lat, lng);
+    const s = await needShop();
+    shopCache = ok(await sb.from('shops').update({ lat, lng, geo_exact: true }).eq('id', s.id).select().single());
     return shopCache;
   },
 

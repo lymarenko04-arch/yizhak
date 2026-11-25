@@ -1,5 +1,5 @@
 // Офлайн-кеш оболонки застосунку. Змінюйте VERSION після кожного оновлення файлів.
-const VERSION = 'yizhak-v2';
+const VERSION = 'yizhak-v3';
 const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/ui.js', 'js/store.js', 'js/local.js', 'js/remote.js', 'js/config.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {

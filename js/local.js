@@ -29,18 +29,59 @@ function expire(db) {
   for (const o of db.offers) if (o.status === 'active' && new Date(o.pickup_to).getTime() < t) { o.status = 'closed'; ch = true; }
   if (ch) save(db);
 }
+export { okPoint };
 const withShop = (db, o) => ({ ...o, shop: db.shops.find(s => s.id === o.shop_id) || null });
 
+// Пошук точки за адресою (OpenStreetMap). «Точно» лише коли знайдено сам будинок;
+// якщо знайшлась тільки вулиця, просимо магазин поправити точку на мапі.
+const STREET_WORDS = /^(вулиця|вул\.?|ул\.?|улица|проспект|просп\.?|пр-т|провулок|пров\.?|бульвар|бул\.?|площа|пл\.?|шосе)\s+/i;
 export async function geocode(address, city) {
-  try {
-    const q = encodeURIComponent(`${address}, ${city}, Україна`);
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ua&q=${q}`, { headers: { 'Accept-Language': 'uk' } });
-    const j = await r.json();
-    if (j[0]) return [Number(j[0].lat), Number(j[0].lon), true];
-  } catch { /* без мережі: беремо центр міста */ }
+  const raw = String(address || '').trim(), clean = raw.replace(STREET_WORDS, '');
+  let street = null;
+  for (const a of [...new Set([clean, raw])]) {
+    try {
+      const q = encodeURIComponent(`${a}, ${city}, Україна`);
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=3&countrycodes=ua&accept-language=uk&q=${q}`);
+      const j = await r.json();
+      const house = j.find(x => x.address?.house_number);
+      if (house) return [Number(house.lat), Number(house.lon), true];
+      street ||= j[0];
+    } catch { /* без мережі: нижче центр міста */ }
+  }
+  if (street) return [Number(street.lat), Number(street.lon), false];
   const c = CITIES[city] || CITIES['Київ'];
   return [c[0] + (Math.random() - 0.5) * 0.02, c[1] + (Math.random() - 0.5) * 0.03, false];
 }
+
+// Координати з повного посилання Google Maps (…/@48.53,35.87,17z або …!3d48.53!4d35.87 або ?q=48.53,35.87).
+export function coordsFromLink(text) {
+  const t = String(text || '');
+  const m = t.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || t.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || t.match(/[?&](?:q|query|ll|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+  if (!m) return null;
+  const lat = Number(m[1]), lng = Number(m[2]);
+  return lat > 44 && lat < 53 && lng > 22 && lng < 41 ? [lat, lng] : null;
+}
+export const isLink = t => /^\s*https?:\/\//i.test(String(t || ''));
+// Адреса за координатами (щоб показати людям текст, а не посилання).
+export async function reverseGeocode(lat, lng) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&lat=${lat}&lon=${lng}`, { headers: { 'Accept-Language': 'uk' } });
+    const a = (await r.json()).address || {};
+    const line = [a.road || a.pedestrian || a.square, a.house_number].filter(Boolean).join(', ');
+    return line || 'точка на мапі';
+  } catch { return 'точка на мапі'; }
+}
+// Розбирає поле «Адреса»: текст адреси або посилання з Google Maps.
+export async function resolvePlace(input, city) {
+  if (isLink(input)) {
+    const c = coordsFromLink(input);
+    if (!c) fail('З короткого посилання (share.google, maps.app.goo.gl) точку не видно. Впишіть адресу текстом, наприклад «Соборна, 97», а точку потім поправите на мапі.');
+    return { address: await reverseGeocode(c[0], c[1]), lat: c[0], lng: c[1], geo_exact: true };
+  }
+  const [lat, lng, exact] = await geocode(input, city);
+  return { address: String(input).trim(), lat, lng, geo_exact: exact };
+}
+const okPoint = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && lat > 44 && lat < 53 && lng > 22 && lng < 41 || fail('Точка поза межами України.');
 
 export const localApi = {
   mode: 'local',
@@ -134,16 +175,17 @@ export const localApi = {
   async saveShop(data) {
     const db = load(); const u = needMe(db);
     for (const k of ['name', 'type', 'city', 'address', 'phone']) if (!String(data[k] || '').trim()) fail('Заповніть усі поля магазину.');
-    let s = db.shops.find(x => x.owner_id === u.id);
-    const moved = !s || s.address !== data.address || s.city !== data.city;
-    if (!s) { s = { id: uid(), owner_id: u.id, verified: false, created_at: now() }; db.shops.push(s); }
-    Object.assign(s, { name: data.name.trim(), type: data.type, city: data.city, address: data.address.trim(), phone: data.phone.trim(), halal: !!data.halal });
-    save(db);
-    if (moved) {
-      const [lat, lng, exact] = await geocode(s.address, s.city);
-      const d2 = load(); const s2 = d2.shops.find(x => x.id === s.id); Object.assign(s2, { lat, lng, geo_exact: exact }); save(d2); return s2;
-    }
-    return s;
+    const cur = db.shops.find(x => x.owner_id === u.id);
+    const row = { name: data.name.trim(), type: data.type, city: data.city, address: data.address.trim(), phone: data.phone.trim(), halal: !!data.halal };
+    if (!cur || cur.address !== row.address || cur.city !== row.city) Object.assign(row, await resolvePlace(row.address, row.city));
+    const d2 = load(); let s = d2.shops.find(x => x.owner_id === u.id);
+    if (!s) { s = { id: uid(), owner_id: u.id, verified: false, created_at: now() }; d2.shops.push(s); }
+    Object.assign(s, row); save(d2); return s;
+  },
+
+  async setShopPoint(lat, lng) {
+    okPoint(lat, lng);
+    const db = load(); const s = needShop(db); Object.assign(s, { lat, lng, geo_exact: true }); save(db); return s;
   },
 
   async createOffer(o) {

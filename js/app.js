@@ -22,7 +22,23 @@ V[''] = () => `<div class="welcome ${st.introDone ? '' : 'intro'}">
   <button class="pick" data-act="pick" data-role="buyer"><span class="ic">${ic.me}</span><span><b>Я покупець</b><span class="meta">Купувати набори дешево або отримувати безкоштовну їжу</span></span></button>
   <button class="pick" data-act="pick" data-role="shop"><span class="ic biz">${ic.box}</span><span><b>Я підприємство</b><span class="meta">Магазин, пекарня, кафе, ферма. Продавати залишки замість списання</span></span></button></div></div>`;
 
-V.login = () => `${back('', 'На початок')}
+const addrHint = `<span class="hint">Вулиця й номер будинку. Або вставте посилання на ваш заклад із Google Maps. Точку на мапі покажемо й дамо поправити.</span>`;
+const shopFields = (s = {}, withContact = false) => `
+  <div class="field"><label for="s-name">Назва закладу</label><input id="s-name" name="name" type="text" value="${esc(s.name || '')}" placeholder="Пекарня «Колосок»" autocomplete="organization" required></div>
+  <div class="field"><label for="s-phone">Телефон</label><input id="s-phone" name="phone" type="tel" value="${esc(s.phone || '')}" placeholder="+380" autocomplete="tel" required>
+  ${withContact ? `<span class="hint">${api.mode === 'local' ? 'Якщо ви вже входили з цим номером, відкриємо ваш акаунт.' : 'Акаунт прив’язується до цього телефона. Пошта й SMS не потрібні.'}</span>` : ''}</div>
+  <div class="field"><label for="s-city">Місто</label><select id="s-city" name="city">${cityOpts(s.city || st.user?.city || 'Київ')}</select></div>
+  <div class="field"><label for="s-addr">Адреса</label><input id="s-addr" name="address" type="text" value="${esc(s.address || '')}" placeholder="вул. Соборна, 12" required>${addrHint}</div>
+  <div class="field"><label for="s-type">Тип</label><select id="s-type" name="type">${SHOP_TYPES.map(t => `<option ${t === s.type ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+  ${withContact ? `<div class="field"><label for="s-contact">Як до вас звертатися (необов’язково)</label><input id="s-contact" name="contact" type="text" autocomplete="name" placeholder="Олена"></div>` : ''}
+  <label class="check"><input type="checkbox" name="halal" ${s.halal ? 'checked' : ''}><span><b>Продаємо халяль</b><br><span class="meta">Лише з чинним сертифікатом. Покупці побачать позначку «халяль».</span></span></label>`;
+
+V.login = () => st.role === 'shop' ? `${back('', 'На початок')}
+  <h2>Реєстрація підприємства</h2>
+  <p class="sub">Одна форма, і ваш заклад з’явиться на мапі Їжака.</p>
+  ${testNote()}
+  <form data-form="shopjoin" novalidate>${shopFields({}, true)}
+  <button class="btn wide">Зареєструвати заклад</button></form>` : `${back('', 'На початок')}
   <h2>${st.role === 'shop' ? 'Вхід для підприємства' : 'Вхід для покупця'}</h2>
   <p class="sub">${st.role === 'shop' ? 'Спершу ваші контакти, потім дані магазину.' : 'Ім’я і телефон потрібні, щоб магазин знав, кому видати набір.'}</p>
   ${testNote()}
@@ -124,17 +140,23 @@ function histCard(r) {
 // ----- магазин -----
 V['shop-setup'] = async () => {
   const s = await api.myShop() || {};
-  return `${s.id ? back('shop') : ''}<h2>${s.id ? 'Дані магазину' : 'Реєстрація магазину'}</h2><p class="sub">Покупці побачать назву й адресу на мапі.</p>
-  <form data-form="shop" novalidate>
-  <div class="field"><label for="s-name">Назва</label><input id="s-name" name="name" type="text" value="${esc(s.name || '')}" placeholder="Пекарня «Колосок»"></div>
-  <div class="field"><label for="s-type">Тип</label><select id="s-type" name="type">${SHOP_TYPES.map(t => `<option ${t === s.type ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
-  <div class="field"><label for="s-city">Місто</label><select id="s-city" name="city">${cityOpts(s.city || st.user.city || 'Київ')}</select></div>
-  <div class="field"><label for="s-addr">Адреса</label><input id="s-addr" name="address" type="text" value="${esc(s.address || '')}" placeholder="вул. Соборна, 12"></div>
-  <div class="field"><label for="s-phone">Телефон магазину</label><input id="s-phone" name="phone" type="tel" value="${esc(s.phone || st.user.phone)}"></div>
-  <label class="check"><input type="checkbox" name="halal" ${s.halal ? 'checked' : ''}><span><b>Продаємо халяль</b><br><span class="meta">Лише з чинним сертифікатом. Покупці побачать позначку «халяль».</span></span></label>
-  <button class="btn wide">${s.id ? 'Зберегти' : 'Зареєструвати магазин'}</button></form>`;
+  return `${s.id ? back('shop') : ''}<h2>${s.id ? 'Дані закладу' : 'Реєстрація закладу'}</h2><p class="sub">Покупці побачать назву й адресу на мапі.</p>
+  <form data-form="shop" novalidate>${shopFields({ ...s, phone: s.phone || st.user.phone })}
+  <button class="btn wide">${s.id ? 'Зберегти' : 'Зареєструвати заклад'}</button></form>
+  ${s.id ? `<a class="btn ghost wide" style="margin-top:10px" href="#/shop-place">Поправити точку на мапі</a>` : ''}`;
 };
 
+V['shop-place'] = async (first) => {
+  const s = await api.myShop();
+  return `${first ? '' : back('shop')}<h2>${first ? 'Заклад зареєстровано!' : 'Точка на мапі'}</h2>
+  <p class="sub">${esc(s.address)}, ${esc(s.city)}</p>
+  ${s.geo_exact ? '' : `<div class="notice"><b>Будинок на мапі не знайшли точно.</b> Точка стоїть приблизно. Натисніть на мапі, де саме ваш заклад.</div>`}
+  <p class="meta" style="margin:0 0 8px">Перевірте, чи стоїть їжачок на вашому закладі. Якщо ні, натисніть на мапі в потрібному місці або перетягніть його.</p>
+  <div id="map" data-place style="height:320px"></div>
+  <a id="gm-check" class="btn ghost wide" target="_blank" rel="noopener" href="${gmPoint(s.lat, s.lng)}">Перевірити в Google Maps ↗</a>
+  <button class="btn wide" style="margin-top:10px" data-act="placeok">Точка правильна</button>`;
+};
+const gmPoint = (lat, lng) => `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 V.shop = async () => {
   const s = await api.myShop(), offers = await api.shopOffers(), rs = await api.shopReservations(), set = await api.getSettings();
   const picked = rs.filter(r => r.status === 'picked'), paid = picked.filter(r => !r.free);
@@ -255,6 +277,19 @@ function loadLeaflet() {
     const js = document.createElement('script'); js.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; js.onload = res; js.onerror = () => rej(new Error('map')); document.head.appendChild(js);
   });
 }
+let placePt = null;
+async function drawPlace() {
+  const el = $('#map[data-place]'); if (!el) return;
+  try { await loadLeaflet(); } catch { el.innerHTML = '<p class="meta" style="padding:16px">Мапа не завантажилась. Перевірте інтернет.</p>'; return; }
+  const s = await api.myShop(); placePt = [s.lat, s.lng];
+  const m = L.map(el).setView(placePt, s.geo_exact ? 17 : 13);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(m);
+  const icon = L.divIcon({ className: '', html: `<span class="mpin" style="background:var(--green)">${pic('bake', 18)}</span>`, iconSize: [34, 34], iconAnchor: [17, 17] });
+  const mk = L.marker(placePt, { icon, draggable: true }).addTo(m);
+  const set = ll => { placePt = [+ll.lat.toFixed(6), +ll.lng.toFixed(6)]; mk.setLatLng(ll); const a = $('#gm-check'); if (a) a.href = gmPoint(...placePt); };
+  mk.on('dragend', () => set(mk.getLatLng()));
+  m.on('click', e => set(e.latlng));
+}
 async function drawMap() {
   const el = $('#map'); if (!el) return;
   try { await loadLeaflet(); } catch { el.innerHTML = '<p class="meta" style="padding:16px">Мапа не завантажилась. Перевірте інтернет.</p>'; return; }
@@ -279,7 +314,7 @@ const NAV = {
   shop: [['shop', 'Зведення', ic.chart], ['shop-new', 'Новий набір', ic.add], ['shop-check', 'Видача', ic.box], ['profile', 'Профіль', ic.me]],
   owner: [['owner', 'Облік', ic.chart], ['owner-goal', 'Мета', ic.flag], ['profile', 'Профіль', ic.me]],
 };
-const ROLE_ROUTES = { buyer: ['feed', 'offer', 'my', 'onboard', 'profile'], shop: ['shop', 'shop-new', 'shop-check', 'shop-setup', 'profile'], owner: ['profile'], registrar: ['profile'] };
+const ROLE_ROUTES = { buyer: ['feed', 'offer', 'my', 'onboard', 'profile'], shop: ['shop', 'shop-new', 'shop-check', 'shop-setup', 'shop-place', 'profile'], owner: ['profile'], registrar: ['profile'] };
 
 async function resolve(route) {
   const u = st.user = await api.me();
@@ -312,6 +347,7 @@ async function render() {
     st.introDone = true;
   }
   if (route === 'feed' && st.view === 'map') drawMap();
+  if (route === 'shop-place') drawPlace();
 }
 
 // ---------- дії ----------
@@ -326,6 +362,7 @@ const A = {
   star: el => { st.stars[el.dataset.id] = +el.dataset.n; render(); },
   close: async el => { if (!confirm('Зняти набір з продажу?')) return; await api.closeOffer(el.dataset.id); toast('Набір знято.'); render(); },
   mode: el => { saveNf(); st.nf.mode = el.dataset.m; render(); },
+  placeok: async () => { if (placePt) await api.setShopPoint(...placePt); toast('Готово. Тепер додайте перший набір.'); go('shop'); },
   issue: async el => { await api.issue(el.dataset.id); st.found = null; toast('Набір видано. Дякуємо!'); render(); },
   logout: async () => {
     if (api.mode === 'server' && !confirm('Акаунт пілоту не прив’язаний до пошти. Після виходу повернутися в нього не вийде, доведеться зареєструватися знову. Вийти?')) return;
@@ -348,7 +385,18 @@ const F = {
     await api.updateProfile({ ...(d.name ? { name: d.name } : {}), city: d.city, category: cat, consent_at: cat ? (st.user.consent_at || new Date().toISOString()) : null });
     toast('Збережено.'); go(st.user.role === 'shop' ? 'shop' : 'feed');
   },
-  shop: async d => { await api.saveShop({ ...d, halal: !!d.halal }); toast('Дані магазину збережено.'); go('shop'); },
+  shop: async d => {
+    const before = await api.myShop(), s = await api.saveShop({ ...d, halal: !!d.halal });
+    if (!before || before.lat !== s.lat || before.lng !== s.lng) return go('shop-place');
+    toast('Дані закладу збережено.'); go('shop');
+  },
+  shopjoin: async d => {
+    for (const k of ['name', 'phone', 'address']) if (!String(d[k] || '').trim()) throw new Error('Заповніть назву, телефон і адресу.');
+    const u = await api.signIn({ name: (d.contact || '').trim() || d.name, phone: d.phone, role: 'shop' });
+    if (u.role !== 'shop') throw new Error('На цьому пристрої вже є інший акаунт Їжака. Зареєструйте заклад з телефона закладу.');
+    await api.saveShop({ ...d, halal: !!d.halal });
+    go('shop-place/1');
+  },
   offer: async () => {
     saveNf(); const n = st.nf, old = Number(n.old_price);
     const base = new Date(); if (n.day === 'tomorrow') base.setDate(base.getDate() + 1);
