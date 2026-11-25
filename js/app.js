@@ -176,10 +176,37 @@ V.shop = async () => {
     : `<div class="card empty">${ic.box}<p><b>Немає активних наборів</b></p><p class="meta">Викладіть те, що не встигнете продати сьогодні.</p></div>`}`;
 };
 
+// ----- час видачі: день, початок (кожні 30 хв), тривалість -----
+const SLOTS = Array.from({ length: 32 }, (_, i) => 7 * 60 + i * 30); // 07:00 … 22:30
+const DURS = [60, 90, 120, 180];
+const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const toMin = t => { const [h, m] = String(t).split(':'); return +h * 60 + (+m || 0); };
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const slotOk = (day, m) => day === 'tomorrow' || m + 30 > nowMin(); // поточне півгодинне вікно ще можна
+const durOk = (from, d) => from + d <= 24 * 60 - 1;
+const durLabel = d => d % 60 ? `${Math.floor(d / 60)},5 год` : `${d / 60} год`;
+const dayDate = day => { const d = new Date(); if (day === 'tomorrow') d.setDate(d.getDate() + 1); return d; };
+const fmtDay = day => dayDate(day).toLocaleDateString('uk-UA', { weekday: 'short', day: 'numeric', month: 'long' });
+function fixWhen(n) {
+  if (!slotOk(n.day, toMin(n.from))) { const f = SLOTS.find(m => slotOk(n.day, m)); if (f == null) { n.day = 'tomorrow'; n.from = '18:00'; } else n.from = hhmm(f); }
+  if (!durOk(toMin(n.from), n.dur)) n.dur = DURS.filter(d => durOk(toMin(n.from), d)).pop() || 30;
+  n.to = hhmm(Math.min(toMin(n.from) + n.dur, 24 * 60 - 1));
+}
 function newOfferState() {
-  const f = new Date(), t = new Date(); f.setMinutes(0, 0, 0); f.setHours(Math.min(f.getHours() + 1, 22)); t.setTime(f.getTime() + 2 * 3600e3);
-  const hm = d => d.toTimeString().slice(0, 5);
-  return { photo: null, title: '', description: '', category: 'bake', old_price: '', mode: '50', price: '', qty: 3, weight_kg: 1.5, day: 'today', from: hm(f), to: hm(t), halal: false };
+  const start = Math.min(Math.max(Math.ceil((nowMin() + 1) / 30) * 30, 7 * 60), 22 * 60 + 30);
+  return { photo: null, title: '', description: '', category: 'bake', old_price: '', mode: '50', price: '', qty: 3, weight_kg: 1.5, day: 'today', from: hhmm(start), dur: 120, halal: false };
+}
+function whenPicker(n) {
+  fixWhen(n); const from = toMin(n.from);
+  return `<div class="label" style="margin:4px 0 8px">Коли забрати</div>
+  <div class="when">
+  <div class="seg" role="group" aria-label="День видачі">${['today', 'tomorrow'].map(d => `<button type="button" class="${n.day === d ? 'on' : ''}" data-act="wday" data-d="${d}" aria-pressed="${n.day === d}">${d === 'today' ? 'Сьогодні' : 'Завтра'}<span class="sd">${dayDate(d).getDate()} ${dayDate(d).toLocaleDateString('uk-UA', { month: 'short' })}</span></button>`).join('')}</div>
+  <div class="wlab">Початок видачі</div>
+  <div class="slots" role="group" aria-label="Початок видачі">${SLOTS.filter(m => slotOk(n.day, m)).map(m => `<button type="button" class="slot${m === from ? ' on' : ''}" data-act="wfrom" data-m="${m}" aria-pressed="${m === from}">${hhmm(m)}</button>`).join('')}</div>
+  <div class="wlab">Скільки часу чекаєте</div>
+  <div class="durs" role="group" aria-label="Тривалість">${DURS.map(d => `<button type="button" class="${d === n.dur ? 'on' : ''}" data-act="wdur" data-d="${d}" ${durOk(from, d) ? '' : 'disabled'} aria-pressed="${d === n.dur}"><b>${durLabel(d)}</b><span>до ${hhmm(Math.min(from + d, 1439))}</span></button>`).join('')}</div>
+  <div class="wsum">${ic.clock}<span>${n.day === 'today' ? 'Сьогодні' : 'Завтра'}, ${fmtDay(n.day)}<br><b>${n.from} – ${n.to}</b></span></div>
+  </div>`;
 }
 V['shop-new'] = async () => {
   const s = await api.myShop(); const n = st.nf ||= newOfferState();
@@ -203,9 +230,7 @@ V['shop-new'] = async () => {
   <p class="meta" style="margin:-4px 0 12px">Покупець заплатить у магазині: <b>${n.mode === 'free' ? 'безкоштовно' : money(price)}</b>. Комісія сервісу зараз 0%.</p>
   <div class="two"><div class="field"><label for="o-qty">Скільки наборів</label><input id="o-qty" name="qty" type="number" inputmode="numeric" min="1" max="200" value="${esc(n.qty)}"></div>
   <div class="field"><label for="o-kg">Вага одного, кг</label><input id="o-kg" name="weight_kg" type="number" inputmode="decimal" min="0.1" step="0.1" value="${esc(n.weight_kg)}"></div></div>
-  <div class="field"><label for="o-day">Коли забрати</label><select id="o-day" name="day"><option value="today" ${n.day === 'today' ? 'selected' : ''}>Сьогодні</option><option value="tomorrow" ${n.day === 'tomorrow' ? 'selected' : ''}>Завтра</option></select></div>
-  <div class="two"><div class="field"><label for="o-from">З</label><input id="o-from" name="from" type="time" value="${n.from}"></div>
-  <div class="field"><label for="o-to">До</label><input id="o-to" name="to" type="time" value="${n.to}"></div></div>
+  ${whenPicker(n)}
   ${s.halal ? `<label class="check"><input type="checkbox" name="halal" ${n.halal ? 'checked' : ''}><span><b>Халяль</b>: товар має сертифікат</span></label>` : ''}
   <button class="btn wide">Опублікувати</button></form>`;
 };
@@ -328,13 +353,16 @@ async function resolve(route) {
   return ROLE_ROUTES[u.role].includes(route) ? route : V[route] ? home : 'notfound';
 }
 
+let lastRoute = null, lastHash = '';
 async function render() {
   const [raw = '', arg] = location.hash.replace(/^#\/?/, '').split('/');
   const route = await resolve(raw);
   if (route !== raw) { history.replaceState(null, '', '#/' + route); }
   let html;
   try { html = await V[route](arg); } catch (e) { html = `<div class="card empty"><p><b>Щось пішло не так</b></p><p class="meta">${esc(e.message)}</p></div>`; }
-  const scr = $('#screen'); scr.innerHTML = html; window.scrollTo(0, 0);
+  const same = route === lastRoute && location.hash === lastHash, y = scrollY, sx = $('.slots')?.scrollLeft;
+  const scr = $('#screen'); scr.innerHTML = html; lastRoute = route; lastHash = location.hash;
+  if (same) { scrollTo(0, y); if (sx != null && $('.slots')) $('.slots').scrollLeft = sx; } else { scrollTo(0, 0); $('.slot.on')?.scrollIntoView({ block: 'nearest', inline: 'center' }); }
   const u = st.user, owner = route.startsWith('owner') && route !== 'owner-lock';
   $('#top').innerHTML = `<button class="brand" id="logo" aria-label="Їжак">${LOGO}Їжак</button>
     <span style="display:flex;gap:6px;align-items:center">${api.mode === 'local' ? '<span class="testbadge">тест</span>' : ''}${u && u.role === 'buyer' && !owner ? `<a class="city" href="#/profile">${esc(u.city)}</a>` : ''}</span>`;
@@ -362,6 +390,9 @@ const A = {
   star: el => { st.stars[el.dataset.id] = +el.dataset.n; render(); },
   close: async el => { if (!confirm('Зняти набір з продажу?')) return; await api.closeOffer(el.dataset.id); toast('Набір знято.'); render(); },
   mode: el => { saveNf(); st.nf.mode = el.dataset.m; render(); },
+  wday: el => { saveNf(); st.nf.day = el.dataset.d; render(); },
+  wfrom: el => { saveNf(); st.nf.from = hhmm(+el.dataset.m); render(); },
+  wdur: el => { saveNf(); st.nf.dur = +el.dataset.d; render(); },
   placeok: async () => { if (placePt) await api.setShopPoint(...placePt); toast('Готово. Тепер додайте перший набір.'); go('shop'); },
   issue: async el => { await api.issue(el.dataset.id); st.found = null; toast('Набір видано. Дякуємо!'); render(); },
   logout: async () => {
@@ -398,7 +429,7 @@ const F = {
     go('shop-place/1');
   },
   offer: async () => {
-    saveNf(); const n = st.nf, old = Number(n.old_price);
+    saveNf(); const n = st.nf, old = Number(n.old_price); fixWhen(n);
     const base = new Date(); if (n.day === 'tomorrow') base.setDate(base.getDate() + 1);
     const at = hm => { const d = new Date(base); const [h, m] = String(hm).split(':'); d.setHours(+h, +m || 0, 0, 0); return d.toISOString(); };
     const price = n.mode === 'free' ? 0 : n.mode === 'own' ? Number(n.price) : Math.round(old * (1 - n.mode / 100));

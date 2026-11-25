@@ -45,7 +45,7 @@ export const catLook = c => CAT_LOOK[c] || CAT_LOOK.mix;
 const svg = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 export const ic = {
   home: svg(PIC.bag), me: svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>'),
-  add: svg('<path d="M12 5v14M5 12h14"/>'), chart: svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+  add: svg('<path d="M12 5v14M5 12h14"/>'), clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'), chart: svg('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
   box: svg('<path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/>'),
   ticket: svg('<path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4z"/><path d="M10 7v10"/>'),
   flag: svg('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'), back: svg('<path d="M15 18l-6-6 6-6"/>'),
