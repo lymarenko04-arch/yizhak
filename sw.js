@@ -1,6 +1,6 @@
 // Офлайн-кеш оболонки застосунку. Змінюйте VERSION після кожного оновлення файлів.
-const VERSION = 'yizhak-v5';
-const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/ui.js', 'js/store.js', 'js/local.js', 'js/remote.js', 'js/config.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
+const VERSION = 'yizhak-v6';
+const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/ui.js', 'js/store.js', 'js/local.js', 'js/remote.js', 'js/config.js', 'js/tour.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

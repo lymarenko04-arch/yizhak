@@ -1,5 +1,6 @@
 import { CONFIG, CITIES } from './config.js';
 import { api } from './store.js';
+import { startTour, BUYER_TOUR, SHOP_TOUR } from './tour.js';
 import { esc, num, money, kg, toast, ic, pic, catLook, CATS, GROUPS, GROUP_DOCS, SHOP_TYPES, LOGO, FACE, when, mapsUrl, thumb, resizeImage } from './ui.js';
 
 const $ = s => document.querySelector(s);
@@ -63,13 +64,29 @@ function profileForm(first) {
   <button class="btn wide">${first ? 'Готово' : 'Зберегти'}</button></form>`;
 }
 
+const FS = [['', 'Звичайний'], ['1', 'Великий'], ['2', 'Найбільший']];
+const fsNow = () => localStorage.getItem('yizhak.fs') || '';
+// Коротко: хто що може і як забрати набір. Кнопка запускає живий показ.
+function howTo(role) {
+  if (role !== 'shop' && role !== 'buyer') return '';
+  const steps = role === 'shop'
+    ? ['<b>Новий набір</b>: увечері сфотографуйте залишки, оберіть ціну й час.', '<b>Покупець бронює</b> і отримує код із 4 цифр.', '<b>Видача</b>: введіть код, візьміть оплату на касі, натисніть «Видати».']
+    : ['У вкладці <b>«Набори»</b> оберіть набір їжі поруч.', 'Натисніть <b>«Забронювати»</b>, і отримаєте код із 4 цифр.', 'Прийдіть у магазин у вказаний час, <b>покажіть код</b>, оплатіть на касі й заберіть.'];
+  return `<div class="card howto"><h3 style="margin:0 0 8px">Як це працює</h3>
+  <ol>${steps.map(t => `<li>${t}</li>`).join('')}</ol>
+  ${role === 'shop' ? '' : '<p class="meta" style="margin:0 0 12px"><b>Безкоштовні набори</b> для пенсіонерів, людей з інвалідністю, сиріт і багатодітних. Оберіть свою категорію нижче й візьміть посвідчення в магазин.</p>'}
+  <button class="btn wide" data-act="tour">Показати, куди натискати</button></div>`;
+}
+const tourOffer = () => localStorage.getItem('yizhak.tourSeen') ? '' : `<div class="card tour-offer"><b>Вперше тут?</b><p class="meta" style="margin:2px 0 10px">Покажемо на екрані, куди натискати. Це хвилина.</p>
+  <div class="two"><button class="btn" data-act="tour">Показати</button><button class="btn ghost" data-act="tourno">Не треба</button></div></div>`;
 V.profile = async () => {
   const u = st.user, s = u.role === 'shop' ? await api.myShop() : null;
   return `<h2>Профіль</h2><p class="sub">${esc(u.phone)} · ${u.role === 'shop' ? 'підприємство' : 'покупець'}</p>
   ${s ? `<div class="card"><div class="row"><b>${esc(s.name)}</b><a class="btn small ghost" href="#/shop-setup">Змінити</a></div><div class="meta">${esc(s.type)} · ${esc(s.city)}, ${esc(s.address)}</div></div>` : ''}
+  <div class="label" style="margin:4px 0 8px">Розмір тексту</div>
+  <div class="seg fs-seg" id="fs-seg" role="group" aria-label="Розмір тексту">${FS.map(([v, l], k) => `<button class="${fsNow() === v ? 'on' : ''}" data-act="fontsize" data-v="${v}" aria-pressed="${fsNow() === v}"><span style="font-size:${15 + k * 4}px">Аа</span>${l}</button>`).join('')}</div>
+  ${howTo(u.role)}
   ${profileForm(false)}
-  <div class="label" style="margin:18px 0 8px">Розмір тексту</div>
-  <div class="seg">${[['', 'Звичайний'], ['1', 'Великий']].map(([v, l]) => `<button class="${(localStorage.getItem('yizhak.big') || '') === v ? 'on' : ''}" data-act="bigtext" data-v="${v}">${l}</button>`).join('')}</div>
   <div class="stack" style="margin-top:16px"><button class="btn ghost wide" data-act="logout">Вийти</button>
   ${api.mode === 'local' ? `<button class="btn alt wide" data-act="seed">Додати демо-магазини і набори (${esc(u.city || 'Київ')})</button>
   <button class="btn danger wide" data-act="reset">Очистити всі тестові дані</button>` : ''}</div>`;
@@ -81,7 +98,7 @@ V.feed = async () => {
   const list = all.filter(o => st.cat === 'all' || (st.cat === 'free' ? o.free : st.cat === 'halal' ? o.halal : o.category === st.cat));
   const chips = [['all', 'Усе'], ['free', 'Безкоштовно'], ...Object.entries(CATS), ['halal', 'Халяль']];
   st.mapOffers = list;
-  return `<h2>Поруч із вами</h2><p class="sub">${esc(st.user.city)} · ціна остаточна, оплата в магазині</p>
+  return `${tourOffer()}<h2>Поруч із вами</h2><p class="sub">${esc(st.user.city)} · ціна остаточна, оплата в магазині</p>
   <div class="seg"><button class="${st.view === 'list' ? 'on' : ''}" data-act="view" data-v="list">Список</button><button class="${st.view === 'map' ? 'on' : ''}" data-act="view" data-v="map">Мапа</button></div>
   <div class="chips">${chips.map(([k, n]) => `<button class="chip ${st.cat === k ? 'on' : ''}" data-act="cat" data-c="${k}">${n}</button>`).join('')}</div>
   ${st.view === 'map' ? '<div id="map" role="region" aria-label="Мапа магазинів"></div>' : ''}
@@ -166,7 +183,7 @@ V.shop = async () => {
   const picked = rs.filter(r => r.status === 'picked'), paid = picked.filter(r => !r.free);
   const rev = paid.reduce((a, r) => a + r.price, 0), fee = set.commissionOn ? Math.round(rev * set.rate / 100) : 0;
   const live = offers.filter(o => o.status === 'active'), waiting = rs.filter(r => r.status === 'reserved');
-  return `<h2>${esc(s.name)}</h2><p class="sub">${esc(s.city)}, ${esc(s.address)}</p>
+  return `${tourOffer()}<h2>${esc(s.name)}</h2><p class="sub">${esc(s.city)}, ${esc(s.address)}</p>
   <div class="card hero"><div class="label">Отримано замість списання</div><div class="big">${money(rev - fee)}</div>
   <p class="meta" style="margin:4px 0 0">${set.commissionOn ? `Комісія сервісу ${set.rate}%: ${money(fee)}` : 'Комісія сервісу 0%: пілотний період'}</p></div>
   <div class="split"><div class="card"><div class="label">Врятовано</div><div class="big">${kg(picked.reduce((a, r) => a + r.weight_kg, 0))}</div></div>
@@ -380,6 +397,7 @@ async function render() {
   }
   if (route === 'feed' && st.view === 'map') drawMap();
   if (route === 'shop-place') drawPlace();
+  document.dispatchEvent(new CustomEvent('yz:rendered', { detail: route }));
 }
 
 // ---------- дії ----------
@@ -394,7 +412,11 @@ const A = {
   star: el => { st.stars[el.dataset.id] = +el.dataset.n; render(); },
   close: async el => { if (!confirm('Зняти набір з продажу?')) return; await api.closeOffer(el.dataset.id); toast('Набір знято.'); render(); },
   mode: el => { saveNf(); st.nf.mode = el.dataset.m; render(); },
-  bigtext: el => { if (el.dataset.v) localStorage.setItem('yizhak.big', '1'); else localStorage.removeItem('yizhak.big'); applyBig(); render(); },
+  fontsize: el => { if (el.dataset.v) localStorage.setItem('yizhak.fs', el.dataset.v); else localStorage.removeItem('yizhak.fs'); applyFs(); render(); },
+  tour: async () => { const role = st.user?.role; let ctx = {};
+    if (role === 'buyer') { const o = await api.listOffers({ city: st.user.city }); ctx.firstOffer = o.find(x => x.status === 'active' && x.qty_left > 0)?.id; }
+    startTour(role === 'shop' ? SHOP_TOUR : BUYER_TOUR, { go, ctx, onEnd: render }); },
+  tourno: () => { localStorage.setItem('yizhak.tourSeen', '1'); render(); },
   wday: el => { saveNf(); st.nf.day = el.dataset.d; render(); },
   wfrom: el => { saveNf(); st.nf.from = hhmm(+el.dataset.m); render(); },
   wdur: el => { saveNf(); st.nf.dur = +el.dataset.d; render(); },
@@ -476,8 +498,12 @@ document.addEventListener('click', e => {
   const t = Date.now(); taps = t - tapT < 700 ? taps + 1 : 1; tapT = t;
   if (taps >= 5) { taps = 0; go(st.ownerOk ? 'owner' : 'owner-lock'); }
 });
-const applyBig = () => document.documentElement.classList.toggle('bigtext', !!localStorage.getItem('yizhak.big'));
-applyBig();
+function applyFs() {
+  if (localStorage.getItem('yizhak.big')) { localStorage.setItem('yizhak.fs', '1'); localStorage.removeItem('yizhak.big'); }
+  const v = fsNow(), c = document.documentElement.classList;
+  c.toggle('fs1', v === '1' || v === '2'); c.toggle('fs2', v === '2');
+}
+applyFs();
 addEventListener('hashchange', render);
 render();
 

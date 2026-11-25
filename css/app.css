@@ -1,6 +1,6 @@
 :root{
   --font:"Nunito","Segoe UI",system-ui,sans-serif;
-  --field:#ECE8DC; --bg:#F7F4EC; --card:#FFFFFF; --ink:#2B2A1F; --muted:#585749; --line:#E3DFD2;
+  --field:#ECE8DC; --bg:#F7F4EC; --card:#FFFFFF; --ink:#2B2A1F; --muted:#6B6A5C; --line:#E3DFD2;
   --brown:#9A6233; --brown-soft:#F2E6D8; --green:#2F6B3F; --green-soft:#E4EFE0; --leaf:#4F9A45; --leaf-soft:#E9F3DF;
   --red:#C44536; --red-soft:#F7E3DE; --on-green:#FFFFFF; --on-brown:#FFFFFF;
   --r:18px; --shadow:0 1px 2px rgba(43,42,31,.06),0 6px 20px rgba(43,42,31,.06);
@@ -188,41 +188,94 @@ textarea{resize:vertical}
 .wsum b{font-size:18px;font-variant-numeric:tabular-nums}
 .wsum svg{width:26px;height:26px;flex:none}
 
-/* Читабельність для людей старшого віку: більший текст, великі кнопки, без дрібних підписів.
-   Ці правила свідомо перекривають розміри вище. */
-body{font-size:17px;line-height:1.5}
-h1{font-size:28px} h2{font-size:24px} h3{font-size:19px}
-.meta,.sub{font-size:15px}
-.label{font-size:14px;letter-spacing:.03em}
-.field label{font-size:15px}
-.field .hint{font-size:14px}
-input[type=text],input[type=tel],input[type=email],input[type=number],input[type=password],input[type=time],select,textarea{font-size:17px;min-height:54px;padding:13px 14px}
-.btn{font-size:17px;min-height:54px;border-radius:16px}
-.btn.small{font-size:15px;min-height:46px;padding:9px 14px;border-radius:13px}
-.back{font-size:16px;padding:10px 0}
-.nav a{font-size:13px;padding:8px 2px}
-.nav a svg{width:26px;height:26px}
-main{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
-.chip{font-size:15px;padding:10px 16px;min-height:44px}
-.seg button{font-size:15px;padding:11px 8px}
-.pill{font-size:13px;padding:4px 10px}
-.offer .t{font-size:18px}
-.offer .s{font-size:15px;white-space:normal}
-.price b{font-size:21px}
-.price s{font-size:15px}
-.thumb{width:92px;height:92px}
-.radios label{font-size:16px;padding:14px}
-.radios input{width:22px;height:22px}
-.check input{width:24px;height:24px}
-.modes button{font-size:16px;padding:12px 6px}
-.code{font-size:64px;letter-spacing:.2em}
-.code-cap{text-align:center;font-weight:800;font-size:15px;color:var(--muted);margin:10px 0 0}
-.stars button{font-size:40px;padding:0 4px}
-.toast{font-size:16px}
-/* «Великий текст» у профілі: ще +15% для тих, кому важко читати */
-html.bigtext body{zoom:1.15}
-.offer .wh{display:flex;align-items:center;gap:6px;font-weight:800;font-size:16px;margin-top:4px}
-.offer .wh svg{width:18px;height:18px;flex:none;color:var(--green)}
-.offer .left{font-size:14px;color:var(--muted);margin-top:2px}
+/* Розмір тексту (Профіль → «Розмір тексту»). За замовчуванням звичайний; fs1 — великий, fs2 — дуже великий. Колір не змінюється. */
+html.fs1 body{font-size:17px;line-height:1.5}
+html.fs1 h1{font-size:28px}
+html.fs1 h2{font-size:24px}
+html.fs1 h3{font-size:19px}
+html.fs1 .meta,html.fs1 .sub{font-size:15px}
+html.fs1 .label{font-size:14px;letter-spacing:.03em}
+html.fs1 .field label{font-size:15px}
+html.fs1 .field .hint{font-size:14px}
+html.fs1 input[type=text],html.fs1 input[type=tel],html.fs1 input[type=email],html.fs1 input[type=number],html.fs1 input[type=password],html.fs1 input[type=time],html.fs1 select,html.fs1 textarea{font-size:17px;min-height:54px;padding:13px 14px}
+html.fs1 .btn{font-size:17px;min-height:54px;border-radius:16px}
+html.fs1 .btn.small{font-size:15px;min-height:46px;padding:9px 14px;border-radius:13px}
+html.fs1 .back{font-size:16px;padding:10px 0}
+html.fs1 .nav a{font-size:13px;padding:8px 2px}
+html.fs1 .nav a svg{width:26px;height:26px}
+html.fs1 main{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
+html.fs1 .chip{font-size:15px;padding:10px 16px;min-height:44px}
+html.fs1 .seg button{font-size:15px;padding:11px 8px}
+html.fs1 .pill{font-size:13px;padding:4px 10px}
+html.fs1 .offer .t{font-size:18px}
+html.fs1 .offer .s{font-size:15px;white-space:normal}
+html.fs1 .price b{font-size:21px}
+html.fs1 .price s{font-size:15px}
+html.fs1 .thumb{width:92px;height:92px}
+html.fs1 .radios label{font-size:16px;padding:14px}
+html.fs1 .radios input{width:22px;height:22px}
+html.fs1 .check input{width:24px;height:24px}
+html.fs1 .modes button{font-size:16px;padding:12px 6px}
+html.fs1 .code{font-size:64px;letter-spacing:.2em}
+html.fs1 .code-cap{text-align:center;font-weight:800;font-size:15px;color:var(--muted);margin:10px 0 0}
+html.fs1 .stars button{font-size:40px;padding:0 4px}
+html.fs1 .toast{font-size:16px}
+html.fs2 body{font-size:19px}
+html.fs2 h1{font-size:30px}
+html.fs2 h2{font-size:26px}
+html.fs2 h3{font-size:21px}
+html.fs2 .meta,html.fs2 .sub{font-size:17px}
+html.fs2 .label{font-size:15px}
+html.fs2 .field label{font-size:17px}
+html.fs2 .field .hint{font-size:16px}
+html.fs2 input[type=text],html.fs2 input[type=tel],html.fs2 input[type=email],html.fs2 input[type=number],html.fs2 input[type=password],html.fs2 input[type=time],html.fs2 select,html.fs2 textarea{font-size:19px;min-height:58px}
+html.fs2 .btn{font-size:19px;min-height:58px}
+html.fs2 .btn.small{font-size:17px;min-height:50px}
+html.fs2 .nav a{font-size:14px}
+html.fs2 .nav a svg{width:28px;height:28px}
+html.fs2 .chip{font-size:17px;padding:11px 18px}
+html.fs2 .seg button{font-size:17px}
+html.fs2 .pill{font-size:14px}
+html.fs2 .offer .t{font-size:20px}
+html.fs2 .offer .s{font-size:17px}
+html.fs2 .offer .wh{font-size:18px}
+html.fs2 .offer .left{font-size:16px}
+html.fs2 .price b{font-size:23px}
+html.fs2 .thumb{width:96px;height:96px}
+html.fs2 .radios label{font-size:18px}
+html.fs2 .code{font-size:76px}
+html.fs2 .code-cap{font-size:17px}
+html.fs2 .toast{font-size:18px}
+html.fs2 .slot{font-size:17px;min-width:72px}
+html.fs2 .durs button b{font-size:16px}
+html.fs2 .durs button span{font-size:13px}
+html.fs2 .wsum{font-size:15px}
+html.fs2 .tour-tip{font-size:19px}
+
+.offer .wh{display:flex;align-items:center;gap:6px;font-weight:800;font-size:14px;margin-top:3px}
+.offer .wh svg{width:16px;height:16px;flex:none;color:var(--green)}
+.offer .left{font-size:12px;color:var(--muted);margin-top:2px}
 .offer .price{padding-top:6px}
 .offer .wh span{display:block}.offer .wh span::first-letter{text-transform:uppercase}
+.code-cap{text-align:center;font-weight:800;font-size:13px;color:var(--muted);margin:10px 0 0}
+html.fs1 .offer .wh{font-size:16px}
+html.fs1 .offer .left{font-size:14px}
+html.fs1 .slot{font-size:16px}
+
+/* Розмір тексту в профілі */
+.fs-seg button{display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.1;padding:9px 4px}
+.fs-seg button span{font-weight:900}
+/* Як це працює */
+.howto ol{margin:0 0 12px;padding-left:22px;display:flex;flex-direction:column;gap:6px}
+.howto li::marker{font-weight:900;color:var(--green)}
+.tour-offer{border-color:var(--green);background:var(--green-soft)}
+/* Живий показ */
+.tour{position:fixed;inset:0;z-index:100}
+.tour-hole{position:fixed;border-radius:14px;box-shadow:0 0 0 9999px rgba(20,24,16,.66);outline:3px solid #F2C14E;outline-offset:2px;transition:all .25s ease;pointer-events:none;animation:tourPulse 1.4s ease-in-out infinite}
+@keyframes tourPulse{50%{outline-color:rgba(242,193,78,.35);outline-offset:6px}}
+@media (prefers-reduced-motion:reduce){.tour-hole{animation:none;transition:none}}
+.tour-tip{position:fixed;left:50%;transform:translateX(-50%);width:min(460px,calc(100% - 24px));background:var(--card);color:var(--ink);border-radius:18px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:16px;transition:top .25s ease}
+.tour-tip b{font-size:1.15em;font-weight:900}
+.tour-tip p{margin:4px 0 12px}
+.tour-n{font-size:12px;font-weight:800;color:var(--muted);margin-bottom:2px}
+.tour-btns{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}
