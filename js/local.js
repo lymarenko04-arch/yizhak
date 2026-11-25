@@ -35,6 +35,14 @@ const withShop = (db, o) => ({ ...o, shop: db.shops.find(s => s.id === o.shop_id
 // Пошук точки за адресою (OpenStreetMap). «Точно» лише коли знайдено сам будинок;
 // якщо знайшлась тільки вулиця, просимо магазин поправити точку на мапі.
 const STREET_WORDS = /^(вулиця|вул\.?|ул\.?|улица|проспект|просп\.?|пр-т|провулок|пров\.?|бульвар|бул\.?|площа|пл\.?|шосе)\s+/i;
+// Номер у єдиному вигляді +380XXXXXXXXX: люди пишуть і «067…», і «380…», і з пробілами.
+export function normPhone(v) {
+  const d = String(v || '').replace(/\D/g, '');
+  if (d.length === 10 && d[0] === '0') return '+38' + d;
+  if (d.length === 12 && d.startsWith('380')) return '+' + d;
+  if (d.length === 9) return '+380' + d;
+  return null;
+}
 export async function geocode(address, city) {
   const raw = String(address || '').trim(), clean = raw.replace(STREET_WORDS, '');
   let street = null;
@@ -90,9 +98,9 @@ export const localApi = {
 
   async signIn({ name, phone, role }) {
     const db = load();
-    const p = String(phone || '').replace(/[^\d+]/g, '');
+    const p = normPhone(phone);
     if (!String(name || '').trim()) fail('Вкажіть ім’я.');
-    if (p.replace(/\D/g, '').length < 10) fail('Вкажіть номер телефону повністю.');
+    if (!p) fail('Перевірте номер телефону. Наприклад: 067 123 45 67');
     let u = db.users.find(x => x.phone === p);
     if (!u) {
       u = { id: uid(), name: name.trim(), phone: p, role: role === 'shop' ? 'shop' : 'buyer', city: '', category: null, consent_at: null, created_at: now() };

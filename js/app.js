@@ -25,7 +25,7 @@ V[''] = () => `<div class="welcome ${st.introDone ? '' : 'intro'}">
 const addrHint = `<span class="hint">Вулиця й номер будинку. Або вставте посилання на ваш заклад із Google Maps. Точку на мапі покажемо й дамо поправити.</span>`;
 const shopFields = (s = {}, withContact = false) => `
   <div class="field"><label for="s-name">Назва закладу</label><input id="s-name" name="name" type="text" value="${esc(s.name || '')}" placeholder="Пекарня «Колосок»" autocomplete="organization" required></div>
-  <div class="field"><label for="s-phone">Телефон</label><input id="s-phone" name="phone" type="tel" value="${esc(s.phone || '')}" placeholder="+380" autocomplete="tel" required>
+  <div class="field"><label for="s-phone">Телефон</label><input id="s-phone" name="phone" type="tel" value="${esc(s.phone || '')}" placeholder="067 123 45 67" autocomplete="tel" inputmode="tel" required>
   ${withContact ? `<span class="hint">${api.mode === 'local' ? 'Якщо ви вже входили з цим номером, відкриємо ваш акаунт.' : 'Акаунт прив’язується до цього телефона. Пошта й SMS не потрібні.'}</span>` : ''}</div>
   <div class="field"><label for="s-city">Місто</label><select id="s-city" name="city">${cityOpts(s.city || st.user?.city || 'Київ')}</select></div>
   <div class="field"><label for="s-addr">Адреса</label><input id="s-addr" name="address" type="text" value="${esc(s.address || '')}" placeholder="вул. Соборна, 12" required>${addrHint}</div>
@@ -44,7 +44,7 @@ V.login = () => st.role === 'shop' ? `${back('', 'На початок')}
   ${testNote()}
   <form data-form="login" novalidate>
   <div class="field"><label for="l-name">Ім’я</label><input id="l-name" name="name" type="text" autocomplete="name" required></div>
-  <div class="field"><label for="l-phone">Телефон</label><input id="l-phone" name="phone" type="tel" autocomplete="tel" placeholder="+380" required>
+  <div class="field"><label for="l-phone">Телефон</label><input id="l-phone" name="phone" type="tel" autocomplete="tel" placeholder="067 123 45 67" inputmode="tel" required>
   <span class="hint">${api.mode === 'local' ? 'Якщо ви вже входили з цим номером, відкриємо ваш акаунт.' : 'Акаунт прив’язується до цього телефона і браузера. Пошта й SMS не потрібні.'}</span></div>
   <button class="btn wide">Продовжити</button></form>`;
 
@@ -68,6 +68,8 @@ V.profile = async () => {
   return `<h2>Профіль</h2><p class="sub">${esc(u.phone)} · ${u.role === 'shop' ? 'підприємство' : 'покупець'}</p>
   ${s ? `<div class="card"><div class="row"><b>${esc(s.name)}</b><a class="btn small ghost" href="#/shop-setup">Змінити</a></div><div class="meta">${esc(s.type)} · ${esc(s.city)}, ${esc(s.address)}</div></div>` : ''}
   ${profileForm(false)}
+  <div class="label" style="margin:18px 0 8px">Розмір тексту</div>
+  <div class="seg">${[['', 'Звичайний'], ['1', 'Великий']].map(([v, l]) => `<button class="${(localStorage.getItem('yizhak.big') || '') === v ? 'on' : ''}" data-act="bigtext" data-v="${v}">${l}</button>`).join('')}</div>
   <div class="stack" style="margin-top:16px"><button class="btn ghost wide" data-act="logout">Вийти</button>
   ${api.mode === 'local' ? `<button class="btn alt wide" data-act="seed">Додати демо-магазини і набори (${esc(u.city || 'Київ')})</button>
   <button class="btn danger wide" data-act="reset">Очистити всі тестові дані</button>` : ''}</div>`;
@@ -91,9 +93,10 @@ V.feed = async () => {
 const priceHtml = o => o.free ? `<b>Безкоштовно</b>` : `<b>${money(o.price)}</b><s>${money(o.old_price)}</s>`;
 function offerCard(o) {
   return `<a class="card offer" href="#/offer/${o.id}" style="margin:0">${thumb(o)}
-  <div class="body"><div class="t">${esc(o.title)}</div><div class="s">${esc(o.shop.name)} · ${esc(o.shop.address)}</div>
-  <div class="s">${when(o.pickup_from, o.pickup_to)} · залишилось ${o.qty_left}</div>
-  <div class="price">${priceHtml(o)}${o.free ? '<span class="pill brown">для пільговиків</span>' : ''}${o.halal ? '<span class="pill brown">халяль</span>' : ''}</div></div></a>`;
+  <div class="body"><div class="t">${esc(o.title)}</div><div class="s">${esc(o.shop.name)}</div>
+  <div class="wh">${ic.clock}<span>${when(o.pickup_from, o.pickup_to)}</span></div>
+  <div class="price">${priceHtml(o)}${o.free ? '<span class="pill brown">для пільговиків</span>' : ''}${o.halal ? '<span class="pill brown">халяль</span>' : ''}</div>
+  <div class="left">${o.qty_left === 1 ? 'Залишився 1 набір' : `Залишилось наборів: ${o.qty_left}`}</div></div></a>`;
 }
 
 V.offer = async id => {
@@ -118,10 +121,11 @@ V.my = async () => {
   const act = rs.filter(r => r.status === 'reserved'), done = rs.filter(r => r.status !== 'reserved');
   return `<h2>Мої броні</h2><p class="sub">Покажіть код продавцю, і він видасть набір.</p>
   ${act.length ? act.map(r => `<div class="card"><div class="row"><b>${esc(r.title)}</b>${r.free ? '<span class="pill brown">безкоштовно</span>' : `<span class="pill">${money(r.price)} в магазині</span>`}</div>
+    <p class="code-cap">Покажіть цей код продавцю</p>
     <div class="code" aria-label="Код видачі ${r.code.split('').join(' ')}">${r.code}</div>
     <p class="meta" style="text-align:center;margin:0 0 10px">${r.shop ? `${esc(r.shop.name)}, ${esc(r.shop.address)}` : ''}<br>Забрати ${r.offer ? when(r.offer.pickup_from, r.offer.pickup_to) : ''}</p>
     ${r.free && st.user.category ? `<p class="meta" style="text-align:center;margin:0 0 10px">Візьміть із собою: ${GROUP_DOCS[st.user.category]}</p>` : ''}
-    <div class="two">${r.shop ? `<a class="btn ghost small" href="${mapsUrl(r.shop)}" target="_blank" rel="noopener">Маршрут</a>` : '<span></span>'}<button class="btn danger small" data-act="cancel" data-id="${r.id}">Скасувати</button></div></div>`).join('')
+    <div class="stack">${r.shop ? `<a class="btn ghost wide" href="${mapsUrl(r.shop)}" target="_blank" rel="noopener">${ic.route}Як дійти</a>` : ''}<button class="btn danger small wide" data-act="cancel" data-id="${r.id}">Скасувати бронь</button></div></div>`).join('')
     : `<div class="card empty">${ic.ticket}<p><b>Активних броней немає</b></p><p class="meta">Оберіть набір у вкладці «Набори».</p></div>`}
   ${done.length ? `<div class="label" style="margin:16px 0 8px">Історія</div><div class="list">${done.map(histCard).join('')}</div>` : ''}`;
 };
@@ -365,7 +369,7 @@ async function render() {
   if (same) { scrollTo(0, y); if (sx != null && $('.slots')) $('.slots').scrollLeft = sx; } else { scrollTo(0, 0); $('.slot.on')?.scrollIntoView({ block: 'nearest', inline: 'center' }); }
   const u = st.user, owner = route.startsWith('owner') && route !== 'owner-lock';
   $('#top').innerHTML = `<button class="brand" id="logo" aria-label="Їжак">${LOGO}Їжак</button>
-    <span style="display:flex;gap:6px;align-items:center">${api.mode === 'local' ? '<span class="testbadge">тест</span>' : ''}${u && u.role === 'buyer' && !owner ? `<a class="city" href="#/profile">${esc(u.city)}</a>` : ''}</span>`;
+    <span style="display:flex;gap:6px;align-items:center">${api.mode === 'local' ? '<span class="testbadge">тест</span>' : ''}${u && u.role === 'buyer' && u.city && !owner ? `<a class="city" href="#/profile">${esc(u.city)}</a>` : ''}</span>`;
   const items = owner ? NAV.owner : u && !['', 'login', 'onboard', 'owner-lock'].includes(route) && !(route === 'shop-setup' && !(await api.myShop())) ? NAV[u.role] || null : null;
   const nav = $('#nav'); nav.hidden = !items;
   nav.innerHTML = items ? items.map(([k, l, i]) => `<a href="#/${k}" class="${route === k || (route === 'offer' && k === 'feed') ? 'on' : ''}" ${route === k ? 'aria-current="page"' : ''}>${i}${l}</a>`).join('') : '';
@@ -390,6 +394,7 @@ const A = {
   star: el => { st.stars[el.dataset.id] = +el.dataset.n; render(); },
   close: async el => { if (!confirm('Зняти набір з продажу?')) return; await api.closeOffer(el.dataset.id); toast('Набір знято.'); render(); },
   mode: el => { saveNf(); st.nf.mode = el.dataset.m; render(); },
+  bigtext: el => { if (el.dataset.v) localStorage.setItem('yizhak.big', '1'); else localStorage.removeItem('yizhak.big'); applyBig(); render(); },
   wday: el => { saveNf(); st.nf.day = el.dataset.d; render(); },
   wfrom: el => { saveNf(); st.nf.from = hhmm(+el.dataset.m); render(); },
   wdur: el => { saveNf(); st.nf.dur = +el.dataset.d; render(); },
@@ -471,6 +476,8 @@ document.addEventListener('click', e => {
   const t = Date.now(); taps = t - tapT < 700 ? taps + 1 : 1; tapT = t;
   if (taps >= 5) { taps = 0; go(st.ownerOk ? 'owner' : 'owner-lock'); }
 });
+const applyBig = () => document.documentElement.classList.toggle('bigtext', !!localStorage.getItem('yizhak.big'));
+applyBig();
 addEventListener('hashchange', render);
 render();
 

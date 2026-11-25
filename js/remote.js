@@ -2,7 +2,7 @@
 // Правила (ліміти броней, коди, хто що бачить) перевіряє сама база: supabase/schema.sql.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
 import { CONFIG, CITIES } from './config.js';
-import { resolvePlace, okPoint } from './local.js';
+import { resolvePlace, okPoint, normPhone } from './local.js';
 
 const sb = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: 'yizhak.auth' },
@@ -53,9 +53,9 @@ export const remoteApi = {
 
   // Пілот: вхід без пошти й SMS. Сесія живе в цьому браузері, ім'я і телефон зберігаються в профілі.
   async signIn({ name, phone, role }) {
-    const p = String(phone || '').replace(/[^\d+]/g, '');
+    const p = normPhone(phone);
     if (!String(name || '').trim()) fail('Вкажіть ім’я.');
-    if (p.replace(/\D/g, '').length < 10) fail('Вкажіть номер телефону повністю.');
+    if (!p) fail('Перевірте номер телефону. Наприклад: 067 123 45 67');
     let id = await uidNow();
     if (!id) id = ok(await sb.auth.signInAnonymously()).user.id;
     const existing = ok(await sb.from('profiles').select('*').eq('id', id).maybeSingle());

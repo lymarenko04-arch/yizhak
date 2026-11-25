@@ -5,7 +5,7 @@ export const num = n => Math.round(Number(n) || 0).toLocaleString('uk-UA');
 export const money = n => `${num(n)} ₴`;
 export const kg = n => `${(Math.round((Number(n) || 0) * 10) / 10).toLocaleString('uk-UA')} кг`;
 
-export function toast(msg, ms = 2800) {
+export function toast(msg, ms = Math.max(4000, String(msg).length * 70)) {
   document.querySelector('.toast')?.remove();
   const d = document.createElement('div');
   d.className = 'toast'; d.setAttribute('role', 'status'); d.textContent = msg;
