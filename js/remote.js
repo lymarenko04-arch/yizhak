@@ -20,6 +20,18 @@ function ok({ data, error }) {
   }
   return data;
 }
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+// Помилки входу з поштою: перекладаємо найчастіші.
+function authOk(res) {
+  const m = res.error?.message || '';
+  if (/already registered|already been registered|already exists/i.test(m)) fail('Ця пошта вже зареєстрована. Натисніть «Я вже маю акаунт».');
+  if (/invalid login credentials/i.test(m)) fail('Неправильна пошта або пароль.');
+  if (/email not confirmed/i.test(m)) fail('Пошту ще не підтверджено. Відкрийте лист від Їжака й натисніть посилання.');
+  if (/signups? (are )?(not allowed|disabled)/i.test(m)) fail('Реєстрацію з поштою вимкнено на сервері.');
+  if (/password/i.test(m) && /least|short|weak/i.test(m)) fail('Пароль закороткий або надто простий. Додайте цифри.');
+  if (/invalid/i.test(m) && /email/i.test(m)) fail('Перевірте пошту. Наприклад: olena@gmail.com');
+  return ok(res);
+}
 const uidNow = async () => (await sb.auth.getSession()).data.session?.user?.id || null;
 const needUid = async () => (await uidNow()) || fail('Увійдіть, щоб продовжити.');
 const nowIso = () => new Date().toISOString();
@@ -48,8 +60,48 @@ export const remoteApi = {
 
   async me() {
     const id = await uidNow(); if (!id) return null;
-    return ok(await sb.from('profiles').select('*').eq('id', id).maybeSingle());
+    const p = ok(await sb.from('profiles').select('*').eq('id', id).maybeSingle());
+    if (p) return p;
+    // Реєстрація з поштою: ім'я й телефон чекають у метаданих, доки людина підтвердить пошту.
+    const m = (await sb.auth.getUser()).data.user?.user_metadata || {};
+    if (!m.name) return null;
+    return ok(await sb.from('profiles').insert({ id, name: m.name, phone: m.phone || null, role: m.role === 'shop' ? 'shop' : 'buyer' }).select().single());
   },
+
+  // Пошта й пароль: щоб увійти в той самий акаунт з іншого телефона. Паролі зберігає Supabase (лише хеш).
+  async signUpEmail({ name, email, password, phone, role }) {
+    name = String(name || '').trim(); email = String(email || '').trim().toLowerCase();
+    if (!name) fail('Вкажіть ім’я.');
+    if (!EMAIL.test(email)) fail('Перевірте пошту. Наприклад: olena@gmail.com');
+    if (String(password || '').length < 6) fail('Пароль має бути щонайменше з 6 символів.');
+    let p = null;
+    if (String(phone || '').trim()) { p = normPhone(phone); if (!p) fail('Перевірте номер телефону. Наприклад: 067 123 45 67'); }
+    if (await uidNow()) await sb.auth.signOut();
+    const r = authOk(await sb.auth.signUp({ email, password, options: { data: { name, phone: p, role: role === 'shop' ? 'shop' : 'buyer' }, emailRedirectTo: location.origin + location.pathname } }));
+    if (!r.session) return { needConfirm: true, email };
+    return this.me();
+  },
+
+  async signInEmail({ email, password }) {
+    email = String(email || '').trim().toLowerCase();
+    if (!EMAIL.test(email)) fail('Перевірте пошту. Наприклад: olena@gmail.com');
+    if (!password) fail('Введіть пароль.');
+    if (await uidNow()) await sb.auth.signOut();
+    authOk(await sb.auth.signInWithPassword({ email, password }));
+    shopCache = null;
+    return (await this.me()) || fail('Акаунт знайдено, але профіль не заповнено. Зареєструйтеся ще раз.');
+  },
+
+  // Додати пошту й пароль до акаунта, створеного за телефоном.
+  async addEmail({ email, password }) {
+    email = String(email || '').trim().toLowerCase();
+    if (!EMAIL.test(email)) fail('Перевірте пошту. Наприклад: olena@gmail.com');
+    if (String(password || '').length < 6) fail('Пароль має бути щонайменше з 6 символів.');
+    const r = authOk(await sb.auth.updateUser({ email, password }, { emailRedirectTo: location.origin + location.pathname }));
+    return { needConfirm: r.user?.email !== email, email };
+  },
+
+  async myEmail() { const u = (await sb.auth.getUser()).data.user; return u?.email || u?.new_email || null; },
 
   // Пілот: вхід без пошти й SMS. Сесія живе в цьому браузері, ім'я і телефон зберігаються в профілі.
   async signIn({ name, phone, role }) {

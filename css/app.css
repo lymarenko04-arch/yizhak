@@ -279,3 +279,10 @@ html.fs1 .slot{font-size:16px}
 .tour-tip p{margin:4px 0 12px}
 .tour-n{font-size:12px;font-weight:800;color:var(--muted);margin-bottom:2px}
 .tour-btns{display:grid;grid-template-columns:1fr 1.4fr;gap:8px}
+
+/* Вхід з поштою і номер клієнта */
+.link-btn{display:block;width:100%;min-height:48px;margin:6px 0 0;padding:10px;background:none;border:0;color:var(--green,#2F6B3F);font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.or{display:flex;align-items:center;gap:10px;margin:16px 0 4px;color:var(--muted);font-size:14px}
+.or::before,.or::after{content:"";flex:1;height:1px;background:currentColor;opacity:.3}
+.client-no .big{letter-spacing:.04em}
+.nums:not(.split) .card{margin-bottom:10px}

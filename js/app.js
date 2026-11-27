@@ -34,20 +34,51 @@ const shopFields = (s = {}, withContact = false) => `
   ${withContact ? `<div class="field"><label for="s-contact">Як до вас звертатися (необов’язково)</label><input id="s-contact" name="contact" type="text" autocomplete="name" placeholder="Олена"></div>` : ''}
   <label class="check"><input type="checkbox" name="halal" ${s.halal ? 'checked' : ''}><span><b>Продаємо халяль</b><br><span class="meta">Лише з чинним сертифікатом. Покупці побачать позначку «халяль».</span></span></label>`;
 
-V.login = () => st.role === 'shop' ? `${back('', 'На початок')}
+const pwField = (id, auto) => `<div class="field"><label for="${id}">Пароль</label><input id="${id}" name="password" type="password" autocomplete="${auto}" minlength="6" required>
+  <label class="check" style="margin-top:8px"><input type="checkbox" data-pw="${id}"><span>Показати пароль</span></label></div>`;
+const lmLink = (m, t) => `<button type="button" class="link-btn" data-act="lmode" data-m="${m}">${t}</button>`;
+const emailOn = () => api.mode === 'server';
+
+V.login = () => {
+  const head = back('', 'На початок');
+  if (st.lm === 'sent') return `${head}<h2>Перевірте пошту</h2>
+  <div class="card"><p style="margin:0">Ми надіслали лист на <b>${esc(st.sentTo || '')}</b>.</p>
+  <p class="meta" style="margin:8px 0 0">Відкрийте його й натисніть посилання. Акаунт відкриється автоматично. Якщо листа немає, перевірте папку «Спам».</p></div>
+  ${lmLink('in', 'Я вже підтвердив пошту — увійти')}`;
+  if (st.lm === 'in') return `${head}<h2>Вхід з поштою</h2>
+  <p class="sub">Для тих, хто вже реєструвався з поштою і паролем.</p>
+  <form data-form="emailin" novalidate>
+  <div class="field"><label for="e-mail">Пошта</label><input id="e-mail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="olena@gmail.com" required></div>
+  ${pwField('e-pw', 'current-password')}
+  <button class="btn wide">Увійти</button></form>
+  ${lmLink('', 'Назад')}`;
+  if (st.lm === 'up') return `${head}<h2>Реєстрація з поштою</h2>
+  <p class="sub">Тоді ви зможете увійти у свій акаунт з будь-якого телефона.</p>
+  <form data-form="emailup" novalidate>
+  <div class="field"><label for="u-name">Ім’я</label><input id="u-name" name="name" type="text" autocomplete="name" required></div>
+  <div class="field"><label for="u-mail">Пошта</label><input id="u-mail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="olena@gmail.com" required></div>
+  ${pwField('u-pw', 'new-password')}<p class="hint" style="margin:-6px 0 12px">Щонайменше 6 символів. Запишіть його, щоб не забути.</p>
+  <div class="field"><label for="u-phone">Телефон (необов’язково)</label><input id="u-phone" name="phone" type="tel" autocomplete="tel" placeholder="067 123 45 67" inputmode="tel"></div>
+  <button class="btn wide">Зареєструватися</button></form>
+  ${lmLink('in', 'Я вже маю акаунт — увійти')}${lmLink('', 'Без пошти, лише за телефоном')}`;
+  if (st.role === 'shop') return `${head}
   <h2>Реєстрація підприємства</h2>
   <p class="sub">Одна форма, і ваш заклад з’явиться на мапі Їжака.</p>
   ${testNote()}
   <form data-form="shopjoin" novalidate>${shopFields({}, true)}
-  <button class="btn wide">Зареєструвати заклад</button></form>` : `${back('', 'На початок')}
-  <h2>${st.role === 'shop' ? 'Вхід для підприємства' : 'Вхід для покупця'}</h2>
-  <p class="sub">${st.role === 'shop' ? 'Спершу ваші контакти, потім дані магазину.' : 'Ім’я і телефон потрібні, щоб магазин знав, кому видати набір.'}</p>
+  <button class="btn wide">Зареєструвати заклад</button></form>
+  ${emailOn() ? lmLink('in', 'Вже маєте акаунт із поштою? Увійти') : ''}`;
+  return `${head}
+  <h2>Вхід для покупця</h2>
+  <p class="sub">Ім’я і телефон потрібні, щоб магазин знав, кому видати набір.</p>
   ${testNote()}
   <form data-form="login" novalidate>
   <div class="field"><label for="l-name">Ім’я</label><input id="l-name" name="name" type="text" autocomplete="name" required></div>
   <div class="field"><label for="l-phone">Телефон</label><input id="l-phone" name="phone" type="tel" autocomplete="tel" placeholder="067 123 45 67" inputmode="tel" required>
-  <span class="hint">${api.mode === 'local' ? 'Якщо ви вже входили з цим номером, відкриємо ваш акаунт.' : 'Акаунт прив’язується до цього телефона і браузера. Пошта й SMS не потрібні.'}</span></div>
-  <button class="btn wide">Продовжити</button></form>`;
+  <span class="hint">${api.mode === 'local' ? 'Якщо ви вже входили з цим номером, відкриємо ваш акаунт.' : 'Акаунт прив’язується до цього телефона. Щоб входити з різних телефонів, зареєструйтеся з поштою.'}</span></div>
+  <button class="btn wide">Продовжити</button></form>
+  ${emailOn() ? `<div class="or">або</div>${lmLink('up', 'Зареєструватися з поштою і паролем')}${lmLink('in', 'Я вже маю акаунт із поштою — увійти')}` : ''}`;
+};
 
 V.onboard = () => `<h2>Вітаємо, ${esc(st.user.name)}!</h2><p class="sub">Ще два кроки, і покажемо набори поруч.</p>${profileForm(true)}`;
 
@@ -81,13 +112,21 @@ const tourOffer = () => localStorage.getItem('yizhak.tourSeen') ? '' : `<div cla
   <div class="two"><button class="btn" data-act="tour">Показати</button><button class="btn ghost" data-act="tourno">Не треба</button></div></div>`;
 V.profile = async () => {
   const u = st.user, s = u.role === 'shop' ? await api.myShop() : null;
-  return `<h2>Профіль</h2><p class="sub">${esc(u.phone)} · ${u.role === 'shop' ? 'підприємство' : 'покупець'}</p>
+  const mail = await api.myEmail();
+  return `<h2>Профіль</h2><p class="sub">${esc(u.phone || mail || '')} · ${u.role === 'shop' ? 'підприємство' : 'покупець'}</p>
+  ${u.client_no ? `<div class="${s?.shop_no ? 'split' : ''} nums"><div class="card client-no"><div class="label">Номер клієнта</div><div class="big">№ ${u.client_no}</div></div>
+  ${s?.shop_no ? `<div class="card client-no"><div class="label">Номер підприємства</div><div class="big">№ ${s.shop_no}</div></div>` : ''}</div>
+  <p class="meta" style="margin:-4px 0 14px">Назвіть ${s?.shop_no ? 'ці номери' : 'його'}, якщо звертаєтеся в підтримку Їжака.</p>` : ''}
   ${s ? `<div class="card"><div class="row"><b>${esc(s.name)}</b><a class="btn small ghost" href="#/shop-setup">Змінити</a></div><div class="meta">${esc(s.type)} · ${esc(s.city)}, ${esc(s.address)}</div></div>` : ''}
   <div class="label" style="margin:4px 0 8px">Розмір тексту</div>
   <div class="seg fs-seg" id="fs-seg" role="group" aria-label="Розмір тексту">${FS.map(([v, l], k) => `<button class="${fsNow() === v ? 'on' : ''}" data-act="fontsize" data-v="${v}" aria-pressed="${fsNow() === v}"><span style="font-size:${15 + k * 4}px">Аа</span>${l}</button>`).join('')}</div>
   ${howTo(u.role)}
   ${profileForm(false)}
-  <div class="stack" style="margin-top:16px"><button class="btn ghost wide" data-act="logout">Вийти</button>
+  ${emailOn() ? (mail ? `<div class="card" style="margin-top:16px"><div class="label">Пошта для входу</div><b>${esc(mail)}</b><p class="meta" style="margin:4px 0 0">З цією поштою і паролем можна увійти з іншого телефона.</p></div>`
+    : `<div class="card" style="margin-top:16px"><h3 style="margin:0 0 6px">Пошта і пароль</h3><p class="meta" style="margin:0 0 10px">Додайте, щоб не загубити акаунт і входити з іншого телефона. Необов’язково.</p>
+    <form data-form="addemail" novalidate><div class="field"><label for="a-mail">Пошта</label><input id="a-mail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="olena@gmail.com"></div>
+    ${pwField('a-pw', 'new-password')}<button class="btn alt wide">Зберегти пошту і пароль</button></form></div>`) : ''}
+  <div class="stack" style="margin-top:16px"><button class="btn ghost wide" data-act="logout" data-mail="${mail ? 1 : ''}">Вийти</button>
   ${api.mode === 'local' ? `<button class="btn alt wide" data-act="seed">Додати демо-магазини і набори (${esc(u.city || 'Київ')})</button>
   <button class="btn danger wide" data-act="reset">Очистити всі тестові дані</button>` : ''}</div>`;
 };
@@ -183,13 +222,13 @@ V.shop = async () => {
   const picked = rs.filter(r => r.status === 'picked'), paid = picked.filter(r => !r.free);
   const rev = paid.reduce((a, r) => a + r.price, 0), fee = set.commissionOn ? Math.round(rev * set.rate / 100) : 0;
   const live = offers.filter(o => o.status === 'active'), waiting = rs.filter(r => r.status === 'reserved');
-  return `${tourOffer()}<h2>${esc(s.name)}</h2><p class="sub">${esc(s.city)}, ${esc(s.address)}</p>
+  return `${tourOffer()}<h2>${esc(s.name)}</h2><p class="sub">${s.shop_no ? `№ ${s.shop_no} · ` : ''}${esc(s.city)}, ${esc(s.address)}</p>
   <div class="card hero"><div class="label">Отримано замість списання</div><div class="big">${money(rev - fee)}</div>
   <p class="meta" style="margin:4px 0 0">${set.commissionOn ? `Комісія сервісу ${set.rate}%: ${money(fee)}` : 'Комісія сервісу 0%: пілотний період'}</p></div>
   <div class="split"><div class="card"><div class="label">Врятовано</div><div class="big">${kg(picked.reduce((a, r) => a + r.weight_kg, 0))}</div></div>
   <div class="card"><div class="label">Видано</div><div class="big">${picked.length}</div><div class="meta">з них безкоштовно ${picked.length - paid.length}</div></div></div>
   <div class="row" style="margin:6px 0 8px"><div class="label">Чекають на видачу · ${waiting.length}</div><a class="btn small" href="#/shop-check">Видати за кодом</a></div>
-  ${waiting.length ? `<div class="list">${waiting.map(r => `<div class="card" style="margin:0"><div class="row"><b>${esc(r.buyer_name)}</b>${r.free ? '<span class="pill brown">безкоштовно</span>' : `<span class="pill">${money(r.price)}</span>`}</div><div class="meta">${esc(r.title)}</div></div>`).join('')}</div>` : '<p class="meta" style="margin:0 0 14px">Поки ніхто не чекає.</p>'}
+  ${waiting.length ? `<div class="list">${waiting.map(r => `<div class="card" style="margin:0"><div class="row"><b>${esc(r.buyer_name)}${r.buyer_no ? ` <span class="meta">№ ${r.buyer_no}</span>` : ''}</b>${r.free ? '<span class="pill brown">безкоштовно</span>' : `<span class="pill">${money(r.price)}</span>`}</div><div class="meta">${esc(r.title)}</div></div>`).join('')}</div>` : '<p class="meta" style="margin:0 0 14px">Поки ніхто не чекає.</p>'}
   <div class="row" style="margin:6px 0 8px"><div class="label">Активні набори · ${live.length}</div><a class="btn small alt" href="#/shop-new">${ic.add}Новий</a></div>
   ${live.length ? `<div class="list">${live.map(o => { const sold = o.qty_total - o.qty_left; return `<div class="card" style="margin:0"><div class="row"><b>${esc(o.title)}</b><span class="pill ${o.free ? 'brown' : ''}">${o.free ? 'безкоштовно' : money(o.price)}</span></div>
     <div class="bar"><span style="width:${sold / o.qty_total * 100}%"></span></div>
@@ -263,7 +302,7 @@ V['shop-check'] = () => {
   <input id="c-code" name="code" type="text" inputmode="numeric" maxlength="4" autocomplete="off" style="font-size:28px;letter-spacing:.3em;text-align:center"></div>
   <button class="btn wide">Перевірити</button></form>
   ${r ? `<div class="card" style="margin-top:14px"><div class="row"><b>${esc(r.title)}</b>${r.free ? '<span class="pill brown">безкоштовно</span>' : `<span class="pill">до оплати ${money(r.price)}</span>`}</div>
-    <p style="margin:8px 0 0">Покупець: <b>${esc(r.buyer_name)}</b></p>
+    <p style="margin:8px 0 0">Покупець: <b>${esc(r.buyer_name)}</b>${r.buyer_no ? ` · клієнт № ${r.buyer_no}` : ''}</p>
     ${r.free ? `<div class="notice" style="margin-top:10px"><b>Перевірте документ:</b> ${GROUPS[r.buyer_category] || 'пільгова категорія'}, ${GROUP_DOCS[r.buyer_category] || 'посвідчення'}. Лише подивіться, не копіюйте.</div>`
       : `<p class="meta">Спершу прийміть оплату ${money(r.price)} готівкою або карткою, потім видайте набір.</p>`}
     <button class="btn wide" style="margin-top:10px" data-act="issue" data-id="${r.id}">${r.free ? 'Документ перевірено, видати' : 'Оплачено, видати набір'}</button></div>` : ''}`;
@@ -416,15 +455,16 @@ const A = {
   tour: async () => { const role = st.user?.role; let ctx = {};
     if (role === 'buyer') { const o = await api.listOffers({ city: st.user.city }); ctx.firstOffer = o.find(x => x.status === 'active' && x.qty_left > 0)?.id; }
     startTour(role === 'shop' ? SHOP_TOUR : BUYER_TOUR, { go, ctx, onEnd: render }); },
+  lmode: el => { st.lm = el.dataset.m; render(); },
   tourno: () => { localStorage.setItem('yizhak.tourSeen', '1'); render(); },
   wday: el => { saveNf(); st.nf.day = el.dataset.d; render(); },
   wfrom: el => { saveNf(); st.nf.from = hhmm(+el.dataset.m); render(); },
   wdur: el => { saveNf(); st.nf.dur = +el.dataset.d; render(); },
   placeok: async () => { if (placePt) await api.setShopPoint(...placePt); toast('Готово. Тепер додайте перший набір.'); go('shop'); },
   issue: async el => { await api.issue(el.dataset.id); st.found = null; toast('Набір видано. Дякуємо!'); render(); },
-  logout: async () => {
-    if (api.mode === 'server' && !confirm('Акаунт пілоту не прив’язаний до пошти. Після виходу повернутися в нього не вийде, доведеться зареєструватися знову. Вийти?')) return;
-    await api.signOut(); st.ownerOk = false; go('');
+  logout: async el => {
+    if (api.mode === 'server' && !el.dataset.mail && !confirm('Акаунт не прив’язаний до пошти. Після виходу повернутися в нього не вийде. Щоб не загубити акаунт, спершу додайте пошту і пароль у профілі. Все одно вийти?')) return;
+    await api.signOut(); st.ownerOk = false; st.lm = ''; go('');
   },
   reset: async () => { if (!confirm('Видалити всі тестові дані на цьому пристрої?')) return; await api.resetAll(); st.nf = null; go(''); },
   ownerout: () => { st.ownerOk = false; go(''); toast('Ви вийшли з кабінету власника.'); },
@@ -437,6 +477,17 @@ function saveNf() {
 let pinTries = 0, pinLock = 0;
 const F = {
   login: async d => { await api.signIn({ ...d, role: st.role }); go(''); },
+  emailup: async d => {
+    const r = await api.signUpEmail({ ...d, role: st.role });
+    if (r?.needConfirm) { st.lm = 'sent'; st.sentTo = r.email; return render(); }
+    st.lm = ''; go('');
+  },
+  emailin: async d => { await api.signInEmail(d); st.lm = ''; go(''); },
+  addemail: async d => {
+    const r = await api.addEmail(d);
+    toast(r.needConfirm ? `Ми надіслали лист на ${r.email}. Натисніть посилання в ньому, щоб підтвердити пошту.` : 'Пошту і пароль збережено.');
+    render();
+  },
   profile: async d => {
     const cat = d.category || null;
     if (cat && !d.consent) throw new Error('Щоб отримувати безкоштовні набори, потрібна ваша згода.');
@@ -488,7 +539,8 @@ document.addEventListener('submit', e => {
   run(F[f.dataset.form])(Object.fromEntries(new FormData(f)), f).finally(() => { if (btn?.isConnected) btn.disabled = false; });
 });
 document.addEventListener('change', run(async e => {
-  if (e.target.id === 'o-photo' && e.target.files[0]) { saveNf(); st.nf.photo = await resizeImage(e.target.files[0]); render(); }
+  if (e.target.dataset.pw) { const i = document.getElementById(e.target.dataset.pw); if (i) i.type = e.target.checked ? 'text' : 'password'; }
+  else if (e.target.id === 'o-photo' && e.target.files[0]) { saveNf(); st.nf.photo = await resizeImage(e.target.files[0]); render(); }
   else if (e.target.closest('form[data-form="offer"]') && ['o-old', 'o-price'].includes(e.target.id)) { saveNf(); render(); }
 }));
 // Прихований вхід власника: 5 швидких натискань на логотип.

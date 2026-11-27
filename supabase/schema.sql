@@ -17,10 +17,11 @@ create extension if not exists pgcrypto;
 create table public.profiles (
   id uuid primary key references auth.users on delete cascade,
   name text not null check (length(name) between 1 and 80),
-  phone text not null check (length(phone) between 10 and 20),
+  phone text check (length(phone) between 10 and 20),
   role text not null default 'buyer' check (role in ('buyer','shop','registrar','owner')),
   city text not null default '',
   category text check (category in ('pens','dis','idp','orph','big')),
+  client_no bigint generated always as identity (start with 1001) unique,
   consent_at timestamptz,
   created_at timestamptz not null default now(),
   constraint category_needs_consent check (category is null or consent_at is not null)
@@ -29,6 +30,7 @@ create table public.profiles (
 create table public.shops (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null unique references public.profiles on delete cascade,
+  shop_no bigint generated always as identity (start with 101) unique,
   name text not null check (length(name) between 1 and 80),
   type text not null, city text not null, address text not null check (length(address) <= 160), phone text not null,
   halal boolean not null default false,
@@ -146,7 +148,7 @@ create policy settings_update on public.settings for update to authenticated usi
 
 create view public.shop_reservations as
   select r.id, r.offer_id, r.shop_id, r.status, r.title, r.price, r.old_price, r.free, r.weight_kg, r.created_at, r.picked_at, r.expires_at,
-         p.name as buyer_name, p.category as buyer_category
+         p.name as buyer_name, p.category as buyer_category, p.client_no as buyer_no
   from public.reservations r join public.profiles p on p.id = r.buyer_id
   where r.shop_id in (select id from public.shops where owner_id = auth.uid());
 

@@ -103,13 +103,17 @@ export const localApi = {
     if (!p) fail('Перевірте номер телефону. Наприклад: 067 123 45 67');
     let u = db.users.find(x => x.phone === p);
     if (!u) {
-      u = { id: uid(), name: name.trim(), phone: p, role: role === 'shop' ? 'shop' : 'buyer', city: '', category: null, consent_at: null, created_at: now() };
+      u = { id: uid(), client_no: 1001 + db.users.length, name: name.trim(), phone: p, role: role === 'shop' ? 'shop' : 'buyer', city: '', category: null, consent_at: null, created_at: now() };
       db.users.push(u);
     }
     db.session = u.id; save(db); return u;
   },
 
   async signOut() { const db = load(); db.session = null; save(db); },
+  async signUpEmail() { fail('Вхід з поштою працює лише з сервером.'); },
+  async signInEmail() { fail('Вхід з поштою працює лише з сервером.'); },
+  async addEmail() { fail('Вхід з поштою працює лише з сервером.'); },
+  async myEmail() { return null; },
 
   async updateProfile(patch) {
     const db = load(); const u = needMe(db);
@@ -146,7 +150,7 @@ export const localApi = {
     let code; do { code = String(Math.floor(1000 + Math.random() * 9000)); } while (used.has(code));
     o.qty_left -= 1;
     const r = {
-      id: uid(), offer_id: o.id, shop_id: o.shop_id, buyer_id: u.id, buyer_name: u.name, buyer_category: u.category,
+      id: uid(), offer_id: o.id, shop_id: o.shop_id, buyer_id: u.id, buyer_name: u.name, buyer_category: u.category, buyer_no: u.client_no,
       title: o.title, price: o.price, old_price: o.old_price, weight_kg: o.weight_kg, free: o.free,
       code, status: 'reserved', expires_at: o.pickup_to, created_at: now(), picked_at: null, rating: null, review: '',
     };
@@ -187,7 +191,7 @@ export const localApi = {
     const row = { name: data.name.trim(), type: data.type, city: data.city, address: data.address.trim(), phone: data.phone.trim(), halal: !!data.halal };
     if (!cur || cur.address !== row.address || cur.city !== row.city) Object.assign(row, await resolvePlace(row.address, row.city));
     const d2 = load(); let s = d2.shops.find(x => x.owner_id === u.id);
-    if (!s) { s = { id: uid(), owner_id: u.id, verified: false, created_at: now() }; d2.shops.push(s); }
+    if (!s) { s = { id: uid(), owner_id: u.id, shop_no: 101 + d2.shops.length, verified: false, created_at: now() }; d2.shops.push(s); }
     Object.assign(s, row); save(d2); return s;
   },
 
