@@ -86,7 +86,7 @@ export const remoteApi = {
     email = String(email || '').trim().toLowerCase();
     if (!EMAIL.test(email)) fail('Перевірте пошту. Наприклад: olena@gmail.com');
     if (!password) fail('Введіть пароль.');
-    if (await uidNow()) await sb.auth.signOut();
+    // Поточну сесію не чіпаємо, доки пароль не підійде: невдала спроба нічого не ламає.
     authOk(await sb.auth.signInWithPassword({ email, password }));
     shopCache = null;
     return (await this.me()) || fail('Акаунт знайдено, але профіль не заповнено. Зареєструйтеся ще раз.');
