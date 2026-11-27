@@ -101,6 +101,45 @@ export const remoteApi = {
     return { needConfirm: r.user?.email !== email, email };
   },
 
+  // ----- власник: пошта + довгий пароль + код з застосунку-автентифікатора -----
+  async ownerSignIn({ email, password }) {
+    await this.signInEmail({ email, password });
+    return this.ownerState();
+  },
+  // role: чи є роль власника; enrolled: чи увімкнено код; ok: чи можна відкривати облік зараз.
+  async ownerState() {
+    const p = await this.me();
+    const { data: f } = await sb.auth.mfa.listFactors();
+    const totp = (f?.totp || []).find(x => x.status === 'verified');
+    const { data: a } = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    const enrolled = !!totp, aal2 = a?.currentLevel === 'aal2';
+    return { role: p?.role === 'owner', enrolled, needCode: enrolled && !aal2, ok: p?.role === 'owner' && (!enrolled || aal2), factorId: totp?.id };
+  },
+  async ownerCode(code) {
+    const s = await this.ownerState();
+    if (!s.factorId) fail('Двофакторний захист не увімкнено.');
+    const r = await sb.auth.mfa.challengeAndVerify({ factorId: s.factorId, code: String(code || '').replace(/\D/g, '') });
+    if (r.error) fail('Невірний код. Відкрийте застосунок-автентифікатор і введіть свіжі 6 цифр.');
+    return this.ownerState();
+  },
+  async mfaStart() {
+    const { data: f } = await sb.auth.mfa.listFactors();
+    for (const x of f?.all || []) if (x.status !== 'verified') await sb.auth.mfa.unenroll({ factorId: x.id });
+    const r = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Їжак власник' });
+    if (r.error) fail('Не вдалося увімкнути захист: ' + r.error.message);
+    return { factorId: r.data.id, qr: r.data.totp.qr_code, secret: r.data.totp.secret };
+  },
+  async mfaFinish(factorId, code) {
+    const r = await sb.auth.mfa.challengeAndVerify({ factorId, code: String(code || '').replace(/\D/g, '') });
+    if (r.error) fail('Невірний код. Перевірте, що час на телефоні правильний, і введіть свіжі 6 цифр.');
+  },
+
+  async changePassword(pw) {
+    if (String(pw || '').length < 8) fail('Новий пароль має бути щонайменше з 8 символів.');
+    if (String(pw).length > 72) fail('Пароль задовгий: максимум 72 символи.');
+    authOk(await sb.auth.updateUser({ password: pw }));
+  },
+
   async myEmail() { const u = (await sb.auth.getUser()).data.user; return u?.email || u?.new_email || null; },
 
   // Пілот: вхід без пошти й SMS. Сесія живе в цьому браузері, ім'я і телефон зберігаються в профілі.

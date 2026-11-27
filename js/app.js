@@ -135,7 +135,9 @@ V.profile = async () => {
   <div class="seg fs-seg" id="fs-seg" role="group" aria-label="Розмір тексту">${FS.map(([v, l], k) => `<button class="${fsNow() === v ? 'on' : ''}" data-act="fontsize" data-v="${v}" aria-pressed="${fsNow() === v}"><span style="font-size:${15 + k * 4}px">Аа</span>${l}</button>`).join('')}</div>
   ${howTo(u.role)}
   ${profileForm(false)}
-  ${emailOn() ? (mail ? `<div class="card" style="margin-top:16px"><div class="label">Пошта для входу</div><b>${esc(mail)}</b><p class="meta" style="margin:4px 0 0">З цією поштою і паролем можна увійти з іншого телефона.</p></div>`
+  ${emailOn() ? (mail ? `<div class="card" style="margin-top:16px"><div class="label">Пошта для входу</div><b>${esc(mail)}</b><p class="meta" style="margin:4px 0 0">З цією поштою і паролем можна увійти з іншого телефона.</p>
+    <details style="margin-top:10px"><summary class="link-btn" style="display:list-item;text-align:left">Змінити пароль</summary>
+    <form data-form="newpw" novalidate style="margin-top:8px">${pwField('n-pw', 'new-password').replace('minlength="6"', 'minlength="8" maxlength="72"')}<button class="btn alt wide">Зберегти новий пароль</button></form></details></div>`
     : `<div class="card" style="margin-top:16px"><h3 style="margin:0 0 6px">Пошта і пароль</h3><p class="meta" style="margin:0 0 10px">Додайте, щоб не загубити акаунт і входити з іншого телефона. Необов’язково.</p>
     <form data-form="addemail" novalidate><div class="field"><label for="a-mail">Пошта</label><input id="a-mail" name="email" type="email" autocomplete="email" inputmode="email" placeholder="olena@gmail.com"></div>
     ${pwField('a-pw', 'new-password')}<button class="btn alt wide">Зберегти пошту і пароль</button></form></div>`) : ''}
@@ -322,10 +324,39 @@ V['shop-check'] = () => {
 };
 
 // ----- власник -----
-V['owner-lock'] = () => api.mode === 'server' ? `${back('', 'На головну')}<div class="card empty" style="margin-top:8px">${ic.lock.replace('<svg', '<svg width="40" height="40"')}<h2>Доступ лише для власника</h2><p class="meta">Цей розділ відкривається тільки акаунту з роллю власника сервісу.</p></div>` : `${back('', 'Вийти')}<div class="card" style="margin-top:8px;text-align:center"><div style="color:var(--green);display:flex;justify-content:center">${ic.lock.replace('<svg', '<svg width="40" height="40"')}</div>
+V['owner-lock'] = async () => api.mode === 'server' ? ownerLock() : `${back('', 'Вийти')}<div class="card" style="margin-top:8px;text-align:center"><div style="color:var(--green);display:flex;justify-content:center">${ic.lock.replace('<svg', '<svg width="40" height="40"')}</div>
   <h2>Вхід власника</h2><p class="meta">Цей розділ бачить лише власник сервісу.</p>
   <form data-form="pin" novalidate style="text-align:left;margin-top:12px"><div class="field"><label for="f-pin">PIN-код</label><input id="f-pin" name="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="8"></div>
   <button class="btn wide">Увійти</button></form></div>`;
+
+async function ownerLock() {
+  const s = st.user ? await api.ownerState() : { role: false };
+  const lockIc = `<div style="color:var(--green);display:flex;justify-content:center">${ic.lock.replace('<svg', '<svg width="40" height="40"')}</div>`;
+  if (s.role && s.needCode) return `${back('', 'На головну')}<div class="card" style="margin-top:8px;text-align:center">${lockIc}
+  <h2>Код підтвердження</h2><p class="meta">Відкрийте застосунок-автентифікатор (Google Authenticator або Bitwarden) і введіть 6 цифр для «Їжак».</p>
+  <form data-form="ownercode" novalidate style="text-align:left;margin-top:12px"><div class="field"><label for="o-code">Код</label>
+  <input id="o-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="font-size:28px;letter-spacing:.3em;text-align:center"></div>
+  <button class="btn wide">Підтвердити</button></form></div>`;
+  return `${back('', 'На головну')}<div class="card" style="margin-top:8px;text-align:center">${lockIc}
+  <h2>Вхід власника</h2><p class="meta">Пошта і пароль акаунта власника.${st.user && st.user.role !== 'owner' ? ' Ви вийдете з поточного акаунта на цьому пристрої.' : ''}</p>
+  <form data-form="ownerin" novalidate style="text-align:left;margin-top:12px">
+  <div class="field"><label for="ow-mail">Пошта</label><input id="ow-mail" name="email" type="email" autocomplete="username" inputmode="email"></div>
+  <div class="field"><label for="ow-pw">Пароль</label><input id="ow-pw" name="password" type="password" autocomplete="current-password" maxlength="72"></div>
+  <button class="btn wide">Увійти</button></form></div>`;
+}
+// Двофакторний захист у кабінеті власника.
+async function mfaCard() {
+  const s = await api.ownerState();
+  if (s.enrolled) return `<div class="card"><div class="row"><b>Двофакторний захист</b><span class="pill">увімкнено</span></div><p class="meta" style="margin:6px 0 0">Без коду з телефона в облік не зайти, навіть знаючи пароль.</p></div>`;
+  if (st.mfa) return `<div class="card"><b>Увімкнення захисту</b>
+  <ol class="meta" style="margin:8px 0;padding-left:18px"><li>Встановіть Google Authenticator або відкрийте Bitwarden → Автентифікатор.</li><li>Відскануйте QR-код.</li><li>Введіть 6 цифр, які покаже застосунок.</li></ol>
+  <div style="background:#fff;padding:10px;border-radius:12px;width:200px;margin:0 auto"><img src="${esc(st.mfa.qr)}" alt="QR-код для автентифікатора" width="180" height="180"></div>
+  <p class="meta" style="word-break:break-all;margin:8px 0">Або введіть ключ вручну: <b>${esc(st.mfa.secret)}</b></p>
+  <form data-form="mfafinish" novalidate><div class="field"><label for="m-code">Код із застосунку</label><input id="m-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" style="font-size:24px;letter-spacing:.3em;text-align:center"></div>
+  <button class="btn wide">Підтвердити й увімкнути</button></form></div>`;
+  return `<div class="card"><b>Двофакторний захист</b><p class="meta" style="margin:6px 0 10px">Рекомендуємо: крім пароля, вхід вимагатиме 6 цифр із застосунку на вашому телефоні.</p>
+  <button class="btn alt wide" data-act="mfastart">Увімкнути</button></div>`;
+}
 
 const GOALS = { kg: ['кг врятованої їжі', s => s.kg], orders: ['виданих наборів', s => s.orders], shops: ['магазинів-партнерів', s => s.shops], buyers: ['покупців', s => s.buyers] };
 async function goalBlock(s) {
@@ -346,6 +377,7 @@ V.owner = async () => {
   <div class="card"><div class="label">Видано наборів</div><div class="big">${num(s.orders)}</div><div class="meta">безкоштовно ${num(s.freeOrders)}</div></div></div>
   <div class="split"><div class="card"><div class="label">Оборот магазинів</div><div class="big">${money(s.turnover)}</div></div>
   <div class="card"><div class="label">Пільговиків</div><div class="big">${num(s.vulnerable)}</div><div class="meta">зареєстровано</div></div></div>
+  ${api.mode === 'server' ? await mfaCard() : ''}
   ${g.html}
   ${cities.length ? `<div class="card"><div class="label" style="margin-bottom:4px">По містах</div><table class="tbl"><tr><th>Місто</th><th>Магазини</th><th>Видано</th><th>Кг</th></tr>
   ${cities.map(([c, v]) => `<tr><td>${esc(c)}</td><td>${v.shops}</td><td>${v.orders}</td><td>${num(v.kg)}</td></tr>`).join('')}</table></div>` : ''}
@@ -416,7 +448,7 @@ const ROLE_ROUTES = { buyer: ['feed', 'offer', 'my', 'onboard', 'profile'], shop
 
 async function resolve(route) {
   const u = st.user = await api.me();
-  if (api.mode === 'server') st.ownerOk = u?.role === 'owner';
+  if (api.mode === 'server') st.ownerOk = u?.role === 'owner' && (!route.startsWith('owner') || (await api.ownerState()).ok);
   if (route.startsWith('owner')) return st.ownerOk ? (route === 'owner-lock' ? 'owner' : route) : 'owner-lock';
   if (!u) return route === 'login' ? 'login' : '';
   if (u.role === 'buyer' && !u.city) return 'onboard';
@@ -469,6 +501,7 @@ const A = {
     if (role === 'buyer') { const o = await api.listOffers({ city: st.user.city }); ctx.firstOffer = o.find(x => x.status === 'active' && x.qty_left > 0)?.id; }
     startTour(role === 'shop' ? SHOP_TOUR : BUYER_TOUR, { go, ctx, onEnd: render }); },
   citypick: el => { const f = el.closest('.city-field'), i = f?.querySelector('[data-city]'); if (!i) return; i.value = el.dataset.v; f.querySelector('.city-sug').hidden = true; },
+  mfastart: async () => { st.mfa = await api.mfaStart(); render(); },
   lmode: el => { st.lm = el.dataset.m; render(); },
   tourno: () => { localStorage.setItem('yizhak.tourSeen', '1'); render(); },
   wday: el => { saveNf(); st.nf.day = el.dataset.d; render(); },
@@ -534,6 +567,14 @@ const F = {
   },
   code: async d => { st.found = await api.findByCode(d.code); if (!st.found) toast('Активної броні з таким кодом немає. Перевірте цифри.'); render(); },
   review: async (d, f) => { await api.review(f.dataset.id, st.stars[f.dataset.id] || 0, d.text); toast('Дякуємо за відгук!'); render(); },
+  newpw: async d => { await api.changePassword(d.password); toast('Пароль змінено.'); render(); },
+  ownerin: async d => {
+    const s = await api.ownerSignIn(d); st.user = await api.me();
+    if (!s.role) { await api.signOut(); st.user = null; throw new Error('Невірна пошта або пароль.'); }
+    go(s.ok ? 'owner' : 'owner-lock');
+  },
+  ownercode: async d => { const s = await api.ownerCode(d.code); if (s.ok) go('owner'); },
+  mfafinish: async d => { await api.mfaFinish(st.mfa.factorId, d.code); st.mfa = null; toast('Двофакторний захист увімкнено.'); render(); },
   pin: async d => {
     if (Date.now() < pinLock) throw new Error(`Забагато спроб. Зачекайте ${Math.ceil((pinLock - Date.now()) / 1000)} с.`);
     if (d.pin === CONFIG.OWNER_PIN_LOCAL) { st.ownerOk = true; pinTries = 0; return go('owner'); }

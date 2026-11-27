@@ -127,6 +127,8 @@ export const localApi = {
   async signInEmail() { fail('Вхід з поштою працює лише з сервером.'); },
   async addEmail() { fail('Вхід з поштою працює лише з сервером.'); },
   async myEmail() { return null; },
+  async changePassword() { throw new Error('Лише з сервером.'); },
+  async ownerState() { return { role: false, enrolled: false, needCode: false, ok: false }; },
 
   async updateProfile(patch) {
     const db = load(); const u = needMe(db);
