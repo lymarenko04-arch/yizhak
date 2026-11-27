@@ -3,6 +3,19 @@
 // без зміни екранів: він має реалізувати ті самі методи об'єкта api.
 import { CONFIG, CITIES } from './config.js';
 
+// Центр міста: з довідника, з кешу або через пошук на мапі (один раз, потім пам'ятаємо).
+export async function cityCenter(city) {
+  if (CITIES[city]) return CITIES[city];
+  const cache = JSON.parse(localStorage.getItem('yizhak.cityc') || '{}');
+  if (cache[city]) return cache[city];
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ua&accept-language=uk&city=${encodeURIComponent(String(city).split(' (')[0])}`);
+    const j = await r.json();
+    if (j[0]) { cache[city] = [Number(j[0].lat), Number(j[0].lon)]; localStorage.setItem('yizhak.cityc', JSON.stringify(cache)); return cache[city]; }
+  } catch { /* без мережі */ }
+  return CITIES['Київ'];
+}
+
 const KEY = 'yizhak.local.v1';
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
 const now = () => new Date().toISOString();
@@ -57,7 +70,7 @@ export async function geocode(address, city) {
     } catch { /* без мережі: нижче центр міста */ }
   }
   if (street) return [Number(street.lat), Number(street.lon), false];
-  const c = CITIES[city] || CITIES['Київ'];
+  const c = await cityCenter(city);
   return [c[0] + (Math.random() - 0.5) * 0.02, c[1] + (Math.random() - 0.5) * 0.03, false];
 }
 

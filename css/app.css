@@ -286,3 +286,11 @@ html.fs1 .slot{font-size:16px}
 .or::before,.or::after{content:"";flex:1;height:1px;background:currentColor;opacity:.3}
 .client-no .big{letter-spacing:.04em}
 .nums:not(.split) .card{margin-bottom:10px}
+
+/* Пошук міста */
+.city-field{position:relative}
+.city-sug{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.city-sug[hidden]{display:none}
+.city-opt{min-height:48px;padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.city-opt:hover,.city-opt:focus-visible{border-color:var(--green);background:var(--green-soft)}
+.city-hint{flex-basis:100%;margin:2px 0}

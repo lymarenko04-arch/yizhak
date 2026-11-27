@@ -1,12 +1,25 @@
-import { CONFIG, CITIES } from './config.js';
+import { CONFIG, CITIES, findCities, canonCity } from './config.js';
 import { api } from './store.js';
+import { cityCenter } from './local.js';
 import { startTour, BUYER_TOUR, SHOP_TOUR } from './tour.js';
 import { esc, num, money, kg, toast, ic, pic, catLook, CATS, GROUPS, GROUP_DOCS, SHOP_TYPES, LOGO, FACE, when, mapsUrl, thumb, resizeImage } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const st = { user: null, shop: null, cat: 'all', view: 'list', ownerOk: false, introDone: false, role: 'buyer', nf: null, found: null, stars: {} };
 const go = path => { const h = '#/' + path; if (location.hash === h) render(); else location.hash = h; };
-const cityOpts = sel => Object.keys(CITIES).map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('');
+// Місто: пишете кілька літер і обираєте зі списку. Можна вписати й місто, якого в списку немає.
+const POPULAR = ['Павлоград', 'Дніпро', 'Київ', 'Харків', 'Львів', 'Одеса'];
+const cityField = (id, label, val) => `<div class="field city-field"><label for="${id}">${label}</label>
+  <input id="${id}" name="city" type="text" value="${esc(val || '')}" data-city autocomplete="off" autocapitalize="words" enterkeyhint="done" placeholder="Почніть писати, наприклад: Пав" required>
+  <div class="city-sug" hidden></div></div>`;
+function showCities(inp) {
+  const box = inp.parentElement.querySelector('.city-sug'); if (!box) return;
+  const v = inp.value.trim(), list = v ? findCities(v) : POPULAR;
+  const exact = list.some(c => c.toLowerCase() === v.toLowerCase());
+  box.innerHTML = (v ? '' : '<div class="meta city-hint">Часто обирають:</div>') + list.map(c => `<button type="button" class="city-opt" data-act="citypick" data-v="${esc(c)}">${esc(c)}</button>`).join('')
+    + (v && !exact && !list.length ? `<div class="meta city-hint">Такого міста немає в списку. Залиште як написали — ми його збережемо.</div>` : '');
+  box.hidden = !box.innerHTML || exact;
+}
 const back = (to, label = 'Назад') => `<a class="back" href="#/${to}">${ic.back.replace('<svg', '<svg width="18" height="18"')}${label}</a>`;
 const testNote = () => api.mode === 'local' ? `<div class="notice"><b>Тестовий режим.</b> Дані зберігаються лише на цьому пристрої. Оплата відбувається в магазині: готівкою або карткою.</div>`
   : `<div class="notice"><b>Пілот.</b> Їжак не приймає гроші: оплата відбувається в магазині, готівкою або карткою.</div>`;
@@ -28,7 +41,7 @@ const shopFields = (s = {}, withContact = false) => `
   <div class="field"><label for="s-name">Назва закладу</label><input id="s-name" name="name" type="text" value="${esc(s.name || '')}" placeholder="Пекарня «Колосок»" autocomplete="organization" required></div>
   <div class="field"><label for="s-phone">Телефон</label><input id="s-phone" name="phone" type="tel" value="${esc(s.phone || '')}" placeholder="067 123 45 67" autocomplete="tel" inputmode="tel" required>
   ${withContact ? `<span class="hint">${api.mode === 'local' ? 'Якщо ви вже входили з цим номером, відкриємо ваш акаунт.' : 'Акаунт прив’язується до цього телефона. Пошта й SMS не потрібні.'}</span>` : ''}</div>
-  <div class="field"><label for="s-city">Місто</label><select id="s-city" name="city">${cityOpts(s.city || st.user?.city || 'Київ')}</select></div>
+  ${cityField('s-city', 'Місто', s.city || st.user?.city || '')}
   <div class="field"><label for="s-addr">Адреса</label><input id="s-addr" name="address" type="text" value="${esc(s.address || '')}" placeholder="вул. Соборна, 12" required>${addrHint}</div>
   <div class="field"><label for="s-type">Тип</label><select id="s-type" name="type">${SHOP_TYPES.map(t => `<option ${t === s.type ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
   ${withContact ? `<div class="field"><label for="s-contact">Як до вас звертатися (необов’язково)</label><input id="s-contact" name="contact" type="text" autocomplete="name" placeholder="Олена"></div>` : ''}
@@ -86,7 +99,7 @@ function profileForm(first) {
   const u = st.user;
   return `<form data-form="profile" novalidate>
   ${first ? '' : `<div class="field"><label for="p-name">Ім’я</label><input id="p-name" name="name" type="text" value="${esc(u.name)}"></div>`}
-  <div class="field"><label for="p-city">Ваше місто</label><select id="p-city" name="city">${cityOpts(u.city || 'Київ')}</select></div>
+  ${cityField('p-city', 'Ваше місто', u.city || '')}
   ${u.role === 'buyer' ? `<div class="label" style="margin:6px 0 8px">Пільгова категорія (необов’язково)</div>
   <p class="meta" style="margin:0 0 10px">Дає доступ до безкоштовних наборів. Документ ви лише показуєте продавцю при отриманні, ми його не зберігаємо.</p>
   <div class="radios"><label><input type="radio" name="category" value="" ${!u.category ? 'checked' : ''}>Не належу до пільгових категорій</label>
@@ -378,7 +391,7 @@ async function drawPlace() {
 async function drawMap() {
   const el = $('#map'); if (!el) return;
   try { await loadLeaflet(); } catch { el.innerHTML = '<p class="meta" style="padding:16px">Мапа не завантажилась. Перевірте інтернет.</p>'; return; }
-  const c = CITIES[st.user.city] || CITIES['Київ'];
+  const c = await cityCenter(st.user.city || 'Київ');
   const m = L.map(el, { zoomControl: true }).setView(c, 13);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(m);
   const byShop = new Map();
@@ -455,6 +468,7 @@ const A = {
   tour: async () => { const role = st.user?.role; let ctx = {};
     if (role === 'buyer') { const o = await api.listOffers({ city: st.user.city }); ctx.firstOffer = o.find(x => x.status === 'active' && x.qty_left > 0)?.id; }
     startTour(role === 'shop' ? SHOP_TOUR : BUYER_TOUR, { go, ctx, onEnd: render }); },
+  citypick: el => { const f = el.closest('.city-field'), i = f?.querySelector('[data-city]'); if (!i) return; i.value = el.dataset.v; f.querySelector('.city-sug').hidden = true; },
   lmode: el => { st.lm = el.dataset.m; render(); },
   tourno: () => { localStorage.setItem('yizhak.tourSeen', '1'); render(); },
   wday: el => { saveNf(); st.nf.day = el.dataset.d; render(); },
@@ -489,17 +503,20 @@ const F = {
     render();
   },
   profile: async d => {
+    d.city = canonCity(d.city); if (!d.city) throw new Error('Вкажіть ваше місто.');
     const cat = d.category || null;
     if (cat && !d.consent) throw new Error('Щоб отримувати безкоштовні набори, потрібна ваша згода.');
     await api.updateProfile({ ...(d.name ? { name: d.name } : {}), city: d.city, category: cat, consent_at: cat ? (st.user.consent_at || new Date().toISOString()) : null });
     toast('Збережено.'); go(st.user.role === 'shop' ? 'shop' : 'feed');
   },
   shop: async d => {
+    d.city = canonCity(d.city); if (!d.city) throw new Error('Вкажіть місто закладу.');
     const before = await api.myShop(), s = await api.saveShop({ ...d, halal: !!d.halal });
     if (!before || before.lat !== s.lat || before.lng !== s.lng) return go('shop-place');
     toast('Дані закладу збережено.'); go('shop');
   },
   shopjoin: async d => {
+    d.city = canonCity(d.city); if (!d.city) throw new Error('Вкажіть місто закладу.');
     for (const k of ['name', 'phone', 'address']) if (!String(d[k] || '').trim()) throw new Error('Заповніть назву, телефон і адресу.');
     const u = await api.signIn({ name: (d.contact || '').trim() || d.name, phone: d.phone, role: 'shop' });
     if (u.role !== 'shop') throw new Error('На цьому пристрої вже є інший акаунт Їжака. Зареєструйте заклад з телефона закладу.');
@@ -538,6 +555,9 @@ document.addEventListener('submit', e => {
   e.preventDefault(); const btn = f.querySelector('button:not([type=button])'); if (btn) btn.disabled = true;
   run(F[f.dataset.form])(Object.fromEntries(new FormData(f)), f).finally(() => { if (btn?.isConnected) btn.disabled = false; });
 });
+document.addEventListener('input', e => { if (e.target.matches?.('[data-city]')) showCities(e.target); });
+document.addEventListener('focusin', e => { if (e.target.matches?.('[data-city]')) showCities(e.target); });
+document.addEventListener('click', e => { if (!e.target.closest('.city-field')) document.querySelectorAll('.city-sug').forEach(b => { b.hidden = true; }); });
 document.addEventListener('change', run(async e => {
   if (e.target.dataset.pw) { const i = document.getElementById(e.target.dataset.pw); if (i) i.type = e.target.checked ? 'text' : 'password'; }
   else if (e.target.id === 'o-photo' && e.target.files[0]) { saveNf(); st.nf.photo = await resizeImage(e.target.files[0]); render(); }
