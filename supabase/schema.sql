@@ -20,7 +20,7 @@ create table public.profiles (
   phone text not null check (length(phone) between 10 and 20),
   role text not null default 'buyer' check (role in ('buyer','shop','registrar','owner')),
   city text not null default '',
-  category text check (category in ('pens','dis','orph','big')),
+  category text check (category in ('pens','dis','idp','orph','big')),
   consent_at timestamptz,
   created_at timestamptz not null default now(),
   constraint category_needs_consent check (category is null or consent_at is not null)
