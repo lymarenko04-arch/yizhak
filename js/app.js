@@ -384,9 +384,90 @@ V.owner = async () => {
   ${api.mode === 'local' ? '<button class="btn ghost wide" data-act="ownerout">Вийти з кабінету власника</button>' : ''}`;
 };
 
+// ----- власник: магазини -----
+const PERIODS = [['7', '7 днів'], ['30', '30 днів'], ['all', 'Увесь час']];
+const fmtDt = d => d ? new Date(d).toLocaleString('uk-UA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+const pct = x => `${Math.round(x * 100)}%`;
+// Рахує все по кожному магазину за обраний період.
+function analyze(d) {
+  const from = st.oPeriod === 'all' ? 0 : Date.now() - Number(st.oPeriod || 30) * 864e5;
+  const inP = x => new Date(x.created_at).getTime() >= from, now = Date.now();
+  const rows = d.shops.map(s => {
+    const offers = d.offers.filter(o => o.shop_id === s.id && inP(o)), res = d.res.filter(r => r.shop_id === s.id && inP(r));
+    const picked = res.filter(r => r.status === 'picked'), free = picked.filter(r => r.free), paid = picked.filter(r => !r.free);
+    const paidOffers = offers.filter(o => !o.free), posted = offers.reduce((a, o) => a + o.qty_total, 0);
+    const rated = picked.filter(r => r.rating), last = [...offers, ...res].map(x => new Date(x.created_at).getTime()).sort((a, b) => b - a)[0];
+    return {
+      s, offers, res, picked, posted,
+      issued: picked.length, freeN: free.length,
+      kg: picked.reduce((a, r) => a + Number(r.weight_kg), 0), kgFree: free.reduce((a, r) => a + Number(r.weight_kg), 0),
+      turnover: paid.reduce((a, r) => a + r.price, 0), saved: picked.reduce((a, r) => a + (r.old_price - r.price), 0),
+      avgDisc: paidOffers.length ? paidOffers.reduce((a, o) => a + (1 - o.price / o.old_price), 0) / paidOffers.length : null,
+      avgPrice: paidOffers.length ? paidOffers.reduce((a, o) => a + o.price, 0) / paidOffers.length : null,
+      avgOld: paidOffers.length ? paidOffers.reduce((a, o) => a + o.old_price, 0) / paidOffers.length : null,
+      noShow: res.filter(r => r.status === 'expired').length, cancelled: res.filter(r => r.status === 'cancelled').length,
+      sellThrough: posted ? picked.length / posted : null,
+      rating: rated.length ? rated.reduce((a, r) => a + r.rating, 0) / rated.length : null,
+      live: d.offers.filter(o => o.shop_id === s.id && o.status === 'active' && o.qty_left > 0 && new Date(o.pickup_to).getTime() > now).length,
+      last,
+    };
+  }).sort((a, b) => b.kg - a.kg || b.issued - a.issued);
+  const tot = k => rows.reduce((a, r) => a + (r[k] || 0), 0);
+  return { rows, total: { shops: rows.length, active: rows.filter(r => r.offers.length).length, issued: tot('issued'), freeN: tot('freeN'), kg: tot('kg'), turnover: tot('turnover'), saved: tot('saved'), posted: tot('posted'), noShow: tot('noShow') } };
+}
+const periodSeg = () => `<div class="seg" role="group" aria-label="Період" style="margin-bottom:14px">${PERIODS.map(([v, l]) => `<button class="${(st.oPeriod || '30') === v ? 'on' : ''}" data-act="operiod" data-v="${v}" aria-pressed="${(st.oPeriod || '30') === v}">${l}</button>`).join('')}</div>`;
+const statLine = (label, val) => `<div class="kv"><span class="meta">${label}</span><b>${val}</b></div>`;
+
+V['owner-shops'] = async () => {
+  const { rows, total: t } = analyze(await api.ownerData());
+  return `<h2>Магазини</h2><p class="sub">${t.shops} зареєстровано · ${t.active} викладали набори за період</p>
+  ${periodSeg()}
+  <div class="split"><div class="card"><div class="label">Видано наборів</div><div class="big">${num(t.issued)}</div><div class="meta">безкоштовно ${num(t.freeN)} · з ${num(t.posted)} викладених</div></div>
+  <div class="card"><div class="label">Врятовано</div><div class="big">${kg(t.kg)}</div><div class="meta">оборот ${money(t.turnover)}</div></div></div>
+  <div class="split"><div class="card"><div class="label">Заощаджено людям</div><div class="big">${money(t.saved)}</div></div>
+  <div class="card"><div class="label">Не прийшли</div><div class="big">${num(t.noShow)}</div><div class="meta">броні, які згоріли</div></div></div>
+  <div class="label" style="margin:10px 0 8px">Рейтинг магазинів за врятованою їжею</div>
+  <div class="list">${rows.map((r, i) => `<a class="card shop-row" href="#/owner-shop/${r.s.id}" style="margin:0;display:block;color:inherit;text-decoration:none">
+    <div class="row"><b>${i + 1}. ${esc(r.s.name)}${r.s.shop_no ? ` <span class="meta">№ ${r.s.shop_no}</span>` : ''}</b>${r.s.verified ? '<span class="pill">перевірений</span>' : '<span class="pill brown">не перевірений</span>'}</div>
+    <div class="meta">${esc(r.s.type)} · ${esc(r.s.city)} · ${r.live ? `зараз ${r.live} набор(и)` : 'зараз наборів немає'}</div>
+    <div class="mini-stats"><span><b>${kg(r.kg)}</b> врятовано</span><span><b>${num(r.issued)}</b> видано${r.freeN ? `, ${r.freeN} безкошт.` : ''}</span><span><b>${r.avgDisc == null ? '—' : '−' + pct(r.avgDisc)}</b> знижка</span><span><b>${r.sellThrough == null ? '—' : pct(r.sellThrough)}</b> розібрано</span></div>
+  </a>`).join('') || '<p class="meta">Магазинів ще немає.</p>'}</div>`;
+};
+
+V['owner-shop'] = async id => {
+  const { rows } = analyze(await api.ownerData()), r = rows.find(x => x.s.id === id);
+  if (!r) return `${back('owner-shops', 'До магазинів')}<p class="meta">Магазин не знайдено.</p>`;
+  const s = r.s, offerById = Object.fromEntries(r.offers.map(o => [o.id, o]));
+  const sold = o => r.res.filter(x => x.offer_id === o.id && x.status === 'picked').length;
+  return `${back('owner-shops', 'До магазинів')}<h2>${esc(s.name)}${s.shop_no ? ` <span class="meta">№ ${s.shop_no}</span>` : ''}</h2>
+  <p class="sub">${esc(s.type)} · ${esc(s.city)}, ${esc(s.address)} · <a href="tel:${esc(s.phone)}">${esc(s.phone)}</a> · з ${new Date(s.created_at).toLocaleDateString('uk-UA')}</p>
+  ${periodSeg()}
+  <div class="split"><div class="card"><div class="label">Врятовано</div><div class="big">${kg(r.kg)}</div><div class="meta">з них безкоштовно ${kg(r.kgFree)}</div></div>
+  <div class="card"><div class="label">Видано</div><div class="big">${num(r.issued)}</div><div class="meta">безкоштовно ${num(r.freeN)}</div></div></div>
+  <div class="card">
+    ${statLine('Викладено наборів', `${num(r.posted)} шт. у ${r.offers.length} пропозиціях`)}
+    ${statLine('Розібрано з викладених', r.sellThrough == null ? '—' : pct(r.sellThrough))}
+    ${statLine('Середня ціна набору', r.avgPrice == null ? '—' : `${money(r.avgPrice)} замість ${money(r.avgOld)}`)}
+    ${statLine('Середня знижка', r.avgDisc == null ? '—' : '−' + pct(r.avgDisc))}
+    ${statLine('Оборот магазину через Їжак', money(r.turnover))}
+    ${statLine('Заощаджено покупцям', money(r.saved))}
+    ${statLine('Не прийшли за бронню', `${num(r.noShow)}${r.res.length ? ` (${pct(r.noShow / r.res.length)})` : ''}`)}
+    ${statLine('Скасовано покупцями', num(r.cancelled))}
+    ${statLine('Оцінка покупців', r.rating == null ? 'ще немає' : `${r.rating.toFixed(1)} з 5`)}
+    ${statLine('Остання активність', r.last ? fmtDt(r.last) : '—')}
+  </div>
+  <div class="label" style="margin:14px 0 8px">Пропозиції наборів · ${r.offers.length}</div>
+  <div class="list">${r.offers.slice(0, 60).map(o => `<div class="card" style="margin:0"><div class="row"><b>${esc(o.title)}</b>${o.free ? '<span class="pill brown">безкоштовно</span>' : `<span class="pill">${money(o.price)} <s class="meta">${money(o.old_price)}</s> −${pct(1 - o.price / o.old_price)}</span>`}</div>
+    <div class="meta">${CATS[o.category] || esc(o.category)} · ${fmtDt(o.created_at)} · видано ${sold(o)} з ${o.qty_total} · ${kg(Number(o.weight_kg))} кожен${o.status === 'active' && new Date(o.pickup_to) > new Date() ? ' · <b>активний</b>' : ''}</div></div>`).join('') || '<p class="meta">За цей період наборів не було.</p>'}</div>
+  <div class="label" style="margin:14px 0 8px">Кому видано · ${r.picked.length}</div>
+  <div class="list">${r.picked.slice(0, 100).map(x => `<div class="card" style="margin:0"><div class="row"><b>${esc(x.buyer_name || 'покупець')}${x.buyer_no ? ` <span class="meta">№ ${x.buyer_no}</span>` : ''}</b>${x.free ? '<span class="pill brown">безкоштовно</span>' : `<span class="pill">${money(x.price)}</span>`}</div>
+    <div class="meta">${esc(x.title)} · ${kg(Number(x.weight_kg))} · ${fmtDt(x.picked_at || x.created_at)}${x.free && x.buyer_category ? ` · ${GROUPS[x.buyer_category] || ''}` : ''}${x.rating ? ` · оцінка ${x.rating}/5` : ''}</div></div>`).join('') || '<p class="meta">За цей період видач не було.</p>'}</div>
+  ${r.picked.length > 100 ? '<p class="meta">Показано останні 100 видач.</p>' : ''}`;
+};
+
 V['owner-goal'] = async () => {
   const s = await api.stats(), g = await goalBlock(s), set = g.set;
-  return `<h2>Мета і комісія</h2><p class="sub">Спочатку ростемо без комісії. Коли досягнемо мети, вирішуєте ви, чи вмикати її.</p>${g.html}
+  return `<h2>Мета і комісія</h2>${g.html}
   <form data-form="goal" novalidate><div class="field"><label for="g-type">Що рахуємо</label><select id="g-type" name="goalType">
   ${Object.entries(GOALS).map(([k, [l]]) => `<option value="${k}" ${k === set.goalType ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
   <div class="two"><div class="field"><label for="g-val">Мета</label><input id="g-val" name="goalValue" type="number" min="1" value="${set.goalValue}"></div>
@@ -442,7 +523,7 @@ async function drawMap() {
 const NAV = {
   buyer: [['feed', 'Набори', ic.home], ['my', 'Мої', ic.ticket], ['profile', 'Профіль', ic.me]],
   shop: [['shop', 'Зведення', ic.chart], ['shop-new', 'Новий набір', ic.add], ['shop-check', 'Видача', ic.box], ['profile', 'Профіль', ic.me]],
-  owner: [['owner', 'Облік', ic.chart], ['owner-goal', 'Мета', ic.flag], ['profile', 'Профіль', ic.me]],
+  owner: [['owner', 'Облік', ic.chart], ['owner-shops', 'Магазини', ic.box], ['owner-goal', 'Мета', ic.flag], ['profile', 'Профіль', ic.me]],
 };
 const ROLE_ROUTES = { buyer: ['feed', 'offer', 'my', 'onboard', 'profile'], shop: ['shop', 'shop-new', 'shop-check', 'shop-setup', 'shop-place', 'profile'], owner: ['profile'], registrar: ['profile'] };
 
@@ -473,7 +554,7 @@ async function render() {
     <span style="display:flex;gap:6px;align-items:center">${api.mode === 'local' ? '<span class="testbadge">тест</span>' : ''}${u && u.role === 'buyer' && u.city && !owner ? `<a class="city" href="#/profile">${esc(u.city)}</a>` : ''}</span>`;
   const items = owner ? NAV.owner : u && !['', 'login', 'onboard', 'owner-lock'].includes(route) && !(route === 'shop-setup' && !(await api.myShop())) ? NAV[u.role] || null : null;
   const nav = $('#nav'); nav.hidden = !items;
-  nav.innerHTML = items ? items.map(([k, l, i]) => `<a href="#/${k}" class="${route === k || (route === 'offer' && k === 'feed') ? 'on' : ''}" ${route === k ? 'aria-current="page"' : ''}>${i}${l}</a>`).join('') : '';
+  nav.innerHTML = items ? items.map(([k, l, i]) => `<a href="#/${k}" class="${route === k || (route === 'offer' && k === 'feed') || (route === 'owner-shop' && k === 'owner-shops') ? 'on' : ''}" ${route === k ? 'aria-current="page"' : ''}>${i}${l}</a>`).join('') : '';
   if (route === '' && !st.introDone) {
     const w = $('.welcome.intro'), h = w?.querySelector('.w-hero');
     if (h) { const q = h.getBoundingClientRect(); w.style.setProperty('--drop', Math.max(0, (innerHeight - q.height) / 2 - q.top) + 'px'); }
@@ -502,6 +583,7 @@ const A = {
     startTour(role === 'shop' ? SHOP_TOUR : BUYER_TOUR, { go, ctx, onEnd: render }); },
   citypick: el => { const f = el.closest('.city-field'), i = f?.querySelector('[data-city]'); if (!i) return; i.value = el.dataset.v; f.querySelector('.city-sug').hidden = true; },
   mfastart: async () => { st.mfa = await api.mfaStart(); render(); },
+  operiod: el => { st.oPeriod = el.dataset.v; render(); },
   lmode: el => { st.lm = el.dataset.m; render(); },
   tourno: () => { localStorage.setItem('yizhak.tourSeen', '1'); render(); },
   wday: el => { saveNf(); st.nf.day = el.dataset.d; render(); },

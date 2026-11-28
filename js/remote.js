@@ -256,6 +256,16 @@ export const remoteApi = {
   async issue(resId) { ok(await sb.rpc('issue_reservation', { p_res: resId })); },
 
   // ---------- власник ----------
+  // Усе для аналізу магазинів: магазини, набори, броні з покупцем. Доступно лише власнику (правила бази).
+  async ownerData() {
+    const [shops, offers, res] = await Promise.all([
+      sb.from('shops').select('*').order('created_at'),
+      sb.from('offers').select('id,shop_id,title,category,old_price,price,free,weight_kg,qty_total,qty_left,status,pickup_from,pickup_to,created_at').order('created_at', { ascending: false }).limit(3000),
+      sb.from('reservations').select('id,offer_id,shop_id,status,title,price,old_price,free,weight_kg,created_at,picked_at,rating,buyer:profiles(name,client_no,category)').order('created_at', { ascending: false }).limit(5000),
+    ]);
+    return { shops: ok(shops), offers: ok(offers), res: ok(res).map(r => ({ ...r, weight_kg: Number(r.weight_kg) || 0, buyer_name: r.buyer?.name, buyer_no: r.buyer?.client_no, buyer_category: r.buyer?.category })) };
+  },
+
   async stats() {
     const s = ok(await sb.rpc('owner_stats'));
     for (const k of ['kg', 'saved', 'turnover']) s[k] = Number(s[k]) || 0;

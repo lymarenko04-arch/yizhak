@@ -294,3 +294,11 @@ html.fs1 .slot{font-size:16px}
 .city-opt{min-height:48px;padding:10px 16px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
 .city-opt:hover,.city-opt:focus-visible{border-color:var(--green);background:var(--green-soft)}
 .city-hint{flex-basis:100%;margin:2px 0}
+
+/* Власник: магазини */
+.mini-stats{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:14px;color:var(--muted)}
+.mini-stats b{color:var(--ink)}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.kv:last-child{border-bottom:0}
+.kv b{text-align:right}
+.shop-row:hover{border-color:var(--green)}

@@ -265,6 +265,11 @@ export const localApi = {
   },
 
   // ---------- власник ----------
+  async ownerData() {
+    const db = load(); expire(db);
+    return { shops: db.shops, offers: db.offers, res: db.res };
+  },
+
   async stats() {
     const db = load(); expire(db);
     const picked = db.res.filter(r => r.status === 'picked');
