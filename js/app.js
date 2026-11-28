@@ -52,11 +52,11 @@ const shopFields = (s = {}, withContact = false) => `
 const WARN_IC = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4"/><path d="M12 17.2v.01"/></svg>';
 // Умови згорнуті в одну помітну плашку. Натиснули — розгорнулись. Погодитися можна, лише дочитавши до кінця.
 const termsBox = () => `<details class="must" data-terms-box>
-  <summary><span class="must-ic">${WARN_IC}</span><span class="must-txt"><b>Умови для закладів і правила щодо їжі</b><span class="must-tag">Обов’язково до прочитання</span></span><span class="must-chev" aria-hidden="true"></span></summary>
+  <summary><span class="must-ic">${WARN_IC}<svg class="ok-ic" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg></span><span class="must-txt"><b>Умови для закладів</b><span class="must-tag">Обов’язково до прочитання</span><span class="must-ok">Прочитано й прийнято</span></span><span class="must-chev" aria-hidden="true"></span></summary>
   <div class="terms must-body">${TERMS_HTML}<p class="must-end" data-terms-end>Кінець умов.</p></div>
 </details>
-<p class="meta terms-need" style="margin:6px 0 8px">Натисніть на плашку, прочитайте умови до кінця, і тоді можна буде погодитися.</p>`;
-const termsCheck = () => `${termsBox()}<label class="check"><input type="checkbox" name="terms" data-terms-ok disabled required><span><b>Я прочитав(ла) і погоджуюсь</b> з умовами для закладів і правилами щодо їжі</span></label>`;
+<p class="meta terms-need" style="margin:4px 0 6px">Відкрийте й дочитайте до кінця, щоб погодитися.</p>`;
+const termsCheck = () => `${termsBox()}<label class="check"><input type="checkbox" name="terms" data-terms-ok disabled required><span><b>Я прочитав(ла) і погоджуюсь</b> з умовами</span></label>`;
 // Коли кінець умов з’явився на екрані (плашку розгорнуто й дочитано) — відкриваємо галочку чи кнопку.
 const termsSeen = new IntersectionObserver(es => es.forEach(e => {
   if (!e.isIntersecting) return;
@@ -736,6 +736,11 @@ document.addEventListener('yz:rendered', () => document.querySelectorAll('[data-
 document.addEventListener('focusin', e => { if (e.target.matches?.('[data-city]')) showCities(e.target); });
 document.addEventListener('click', e => { if (!e.target.closest('.city-field')) document.querySelectorAll('.city-sug').forEach(b => { b.hidden = true; }); });
 document.addEventListener('change', run(async e => {
+  if (e.target.matches('input[data-terms-ok]')) {
+    const box = (e.target.closest('form, .card') || document).querySelector('[data-terms-box]');
+    if (box) { box.classList.toggle('done', e.target.checked); if (e.target.checked) box.open = false; }
+    const need = (e.target.closest('form, .card') || document).querySelector('.terms-need'); if (need) need.hidden = e.target.checked;
+  }
   if (e.target.dataset.pw) { const i = document.getElementById(e.target.dataset.pw); if (i) i.type = e.target.checked ? 'text' : 'password'; }
   else if (e.target.id === 'o-photo' && e.target.files[0]) { saveNf(); st.nf.photo = await resizeImage(e.target.files[0]); render(); }
   else if (e.target.closest('form[data-form="offer"]') && ['o-old', 'o-price', 'o-cat'].includes(e.target.id)) { saveNf(); render(); }

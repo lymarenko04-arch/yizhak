@@ -317,18 +317,29 @@ html.fs1 .slot{font-size:16px}
 .tbl.fresh td,.tbl.fresh th{padding:6px 4px;vertical-align:top;text-align:left}
 .fresh-card summary{cursor:pointer;min-height:44px;display:list-item}
 
-/* Плашка «Обов’язково до прочитання» */
-.must{border:2px solid var(--red);border-radius:14px;background:var(--red-soft);margin:6px 0 4px;overflow:hidden}
-.must summary{list-style:none;display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer;min-height:56px}
+/* Плашка «Обов’язково до прочитання»: компактна; після згоди — спокійна */
+.must{border:2px solid var(--red);border-radius:12px;background:var(--red-soft);margin:4px 0;overflow:hidden}
+.must summary{list-style:none;display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;min-height:48px}
 .must summary::-webkit-details-marker{display:none}
 .must summary:focus-visible{outline:3px solid var(--red);outline-offset:-3px}
 .must-ic{flex:none;display:flex;color:var(--red);animation:mustPulse 1.6s ease-in-out infinite}
+.must-ic svg{width:20px;height:20px}
 .must[open] .must-ic{animation:none}
-.must-txt{flex:1;display:flex;flex-direction:column;gap:4px;color:var(--ink)}
-.must-tag{align-self:flex-start;background:var(--red);color:#fff;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px}
-.must-chev{flex:none;width:12px;height:12px;border-right:3px solid var(--red);border-bottom:3px solid var(--red);transform:rotate(45deg);margin:0 6px 4px 0;transition:transform .2s}
-.must[open] .must-chev{transform:rotate(-135deg);margin-bottom:-4px}
-.must-body{background:var(--card);padding:12px 16px;border-top:1px solid var(--red)}
-.must-end{margin:12px 0 0;font-weight:700;color:var(--green)}
+.must-txt{flex:1;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;color:var(--ink);font-size:15px}
+.must-tag{background:var(--red);color:#fff;font-size:11px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;border-radius:999px}
+.must-ok{display:none;color:var(--muted);font-size:13px}
+.must-chev{flex:none;width:9px;height:9px;border-right:2px solid var(--red);border-bottom:2px solid var(--red);transform:rotate(45deg);margin:0 4px 3px 0;transition:transform .2s}
+.must[open] .must-chev{transform:rotate(-135deg);margin-bottom:-3px}
+.must-body{background:var(--card);padding:10px 14px;border-top:1px solid var(--red);font-size:15px}
+.must-end{margin:10px 0 0;font-weight:700;color:var(--green)}
+.must.done{border:1px solid var(--line);background:var(--card)}
+.must.done .must-ic{color:var(--green);animation:none}
+.must.done .must-tag{display:none}
+.must.done .must-ok{display:inline}
+.must.done .must-chev{border-color:var(--muted)}
+.must.done .must-body{border-top-color:var(--line)}
 @keyframes mustPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
 @media (prefers-reduced-motion:reduce){.must-ic{animation:none}.must-chev{transition:none}}
+.must-ic .ok-ic{display:none}
+.must.done .must-ic svg{display:none}
+.must.done .must-ic .ok-ic{display:block}
