@@ -2,7 +2,7 @@ import { CONFIG, CITIES, findCities, canonCity } from './config.js';
 import { api } from './store.js';
 import { cityCenter } from './local.js';
 import { startTour, BUYER_TOUR, SHOP_TOUR } from './tour.js';
-import { esc, num, money, kg, toast, ic, pic, catLook, CATS, GROUPS, GROUP_DOCS, SHOP_TYPES, LOGO, FACE, when, mapsUrl, thumb, resizeImage, EXPIRY_DAYS, expiryRule, GMAPS_RE, VERIFY_KG, TERMS_HTML } from './ui.js';
+import { esc, num, money, kg, toast, ic, pic, catLook, CATS, GROUPS, GROUP_DOCS, SHOP_TYPES, LOGO, FACE, when, mapsUrl, thumb, resizeImage, EXPIRY_DAYS, expiryRule, GMAPS_RE, VERIFY_KG, TERMS_HTML, BUYER_RULES_HTML } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const st = { user: null, shop: null, cat: 'all', view: 'list', ownerOk: false, introDone: false, role: 'buyer', nf: null, found: null, stars: {} };
@@ -49,9 +49,18 @@ const shopFields = (s = {}, withContact = false) => `
   ${withContact ? `<div class="field"><label for="s-contact">Як до вас звертатися (необов’язково)</label><input id="s-contact" name="contact" type="text" autocomplete="name" placeholder="Олена"></div>` : ''}
   <label class="check"><input type="checkbox" name="halal" ${s.halal ? 'checked' : ''}><span><b>Продаємо халяль</b><br><span class="meta">Лише з чинним сертифікатом. Покупці побачать позначку «халяль».</span></span></label>`;
 
-const termsBox = () => `<details class="terms-box"><summary class="link-btn" style="display:list-item;text-align:left">Прочитати умови для закладів</summary><div class="terms">${TERMS_HTML}</div></details>`;
-const termsCheck = () => `${termsBox()}<label class="check"><input type="checkbox" name="terms" required><span><b>Погоджуюсь з умовами для закладів</b> і правилами щодо їжі</span></label>`;
-V.terms = () => `${back('', 'Назад')}<h2>Умови для закладів</h2><div class="card terms">${TERMS_HTML}</div>`;
+const termsBox = () => `<div class="label" style="margin:6px 0 6px">Умови для закладів і правила щодо їжі</div>
+  <div class="terms terms-scroll" data-terms tabindex="0" aria-label="Умови для закладів">${TERMS_HTML}</div>
+  <p class="meta terms-need" style="margin:6px 0 8px">Прогорніть умови до кінця, щоб погодитися.</p>`;
+const termsCheck = () => `${termsBox()}<label class="check"><input type="checkbox" name="terms" data-terms-ok disabled required><span><b>Я прочитав(ла) і погоджуюсь</b> з умовами для закладів і правилами щодо їжі</span></label>`;
+// Коли вікно з умовами прогорнуто до кінця (або воно й так уміщується), відкриваємо галочку чи кнопку.
+function termsRead(box) {
+  if (box.scrollTop + box.clientHeight < box.scrollHeight - 8) return;
+  const root = box.closest('form, .card') || document;
+  root.querySelectorAll('[data-terms-ok]').forEach(el => { el.disabled = false; });
+  const need = root.querySelector('.terms-need'); if (need) need.textContent = 'Дякуємо, що прочитали.';
+}
+V.terms = () => `${back('', 'Назад')}<h2>Правила Їжака</h2><div class="card"><h3 style="margin:0 0 8px">Для покупців</h3>${BUYER_RULES_HTML}</div><div class="card terms"><h3 style="margin:0 0 8px">Умови для закладів</h3>${TERMS_HTML}</div>`;
 
 const pwField = (id, auto) => `<div class="field"><label for="${id}">Пароль</label><input id="${id}" name="password" type="password" autocomplete="${auto}" minlength="6" required>
   <label class="check" style="margin-top:8px"><input type="checkbox" data-pw="${id}"><span>Показати пароль</span></label></div>`;
@@ -97,10 +106,11 @@ V.login = () => {
   <div class="field"><label for="l-phone">Телефон</label><input id="l-phone" name="phone" type="tel" autocomplete="tel" placeholder="067 123 45 67" inputmode="tel" required>
   <span class="hint">${api.mode === 'local' ? 'Якщо ви вже входили з цим номером, відкриємо ваш акаунт.' : 'Акаунт прив’язується до цього телефона. Щоб входити з різних телефонів, зареєструйтеся з поштою.'}</span></div>
   <button class="btn wide">Продовжити</button></form>
+  <details class="card fresh-card" style="margin-top:14px"><summary><b>Свіжість гарантуємо правилами</b> <span class="meta">· які терміни допускає Їжак</span></summary><div style="margin-top:10px">${BUYER_RULES_HTML}</div></details>
   ${emailOn() ? `<div class="or">або</div>${lmLink('up', 'Зареєструватися з поштою і паролем')}${lmLink('in', 'Я вже маю акаунт із поштою — увійти')}` : ''}`;
 };
 
-V.onboard = () => `<h2>Вітаємо, ${esc(st.user.name)}!</h2><p class="sub">Ще два кроки, і покажемо набори поруч.</p>${profileForm(true)}`;
+V.onboard = () => `<h2>Вітаємо, ${esc(st.user.name)}!</h2><p class="sub">Ще два кроки, і покажемо набори поруч.</p>${profileForm(true)}<div class="card fresh-card" style="margin-top:14px"><b>Свіжість гарантуємо правилами</b><div style="margin-top:8px">${BUYER_RULES_HTML}</div></div>`;
 
 function profileForm(first) {
   const u = st.user;
@@ -247,7 +257,7 @@ V.shop = async () => {
   const live = offers.filter(o => o.status === 'active'), waiting = rs.filter(r => r.status === 'reserved');
   const pkg = picked.reduce((a, r) => a + Number(r.weight_kg), 0);
   const termsCard = s.terms_at ? '' : `<div class="card notice-card"><b>Прийміть умови для закладів</b><p class="meta" style="margin:6px 0 8px">Без цього не можна викладати нові набори.</p>${termsBox()}
-    <button class="btn wide" style="margin-top:8px" data-act="acceptterms">Погоджуюсь з умовами</button></div>`;
+    <button class="btn wide" style="margin-top:8px" data-act="acceptterms" data-terms-ok disabled>Я прочитав(ла) і погоджуюсь</button></div>`;
   const verCard = s.verified ? '' : `<div class="card"><div class="label">До позначки «Перевірений»</div>
     <div class="bar" style="margin:8px 0 6px"><span style="width:${Math.min(100, pkg / VERIFY_KG * 100)}%"></span></div>
     <p class="meta" style="margin:0">${kg(pkg)} з ${VERIFY_KG} кг видано · Google Maps: ${s.gmaps_url ? '<b>додано ✓</b>' : '<a href="#/shop-setup">додайте посилання</a>'}</p></div>`;
@@ -717,6 +727,8 @@ document.addEventListener('submit', e => {
   run(F[f.dataset.form])(Object.fromEntries(new FormData(f)), f).finally(() => { if (btn?.isConnected) btn.disabled = false; });
 });
 document.addEventListener('input', e => { if (e.target.matches?.('[data-city]')) showCities(e.target); });
+document.addEventListener('scroll', e => { if (e.target.matches?.('[data-terms]')) termsRead(e.target); }, true);
+document.addEventListener('yz:rendered', () => document.querySelectorAll('[data-terms]').forEach(termsRead));
 document.addEventListener('focusin', e => { if (e.target.matches?.('[data-city]')) showCities(e.target); });
 document.addEventListener('click', e => { if (!e.target.closest('.city-field')) document.querySelectorAll('.city-sug').forEach(b => { b.hidden = true; }); });
 document.addEventListener('change', run(async e => {

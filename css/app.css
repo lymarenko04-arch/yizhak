@@ -311,3 +311,8 @@ html.fs1 .slot{font-size:16px}
 .terms-box{margin:4px 0 8px}
 .terms-box .terms{background:var(--field);border-radius:12px;padding:12px 14px;margin-top:6px}
 .notice-card{border:2px solid var(--brown)}
+.terms-scroll{max-height:320px;overflow-y:auto;background:var(--field);border-radius:12px;padding:12px 14px;border:1px solid var(--line)}
+.terms-scroll:focus-visible{outline:3px solid var(--green)}
+.tbl.fresh{width:100%;margin:6px 0}
+.tbl.fresh td,.tbl.fresh th{padding:6px 4px;vertical-align:top;text-align:left}
+.fresh-card summary{cursor:pointer;min-height:44px;display:list-item}
