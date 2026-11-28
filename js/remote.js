@@ -16,6 +16,7 @@ function ok({ data, error }) {
     if (/anonymous/i.test(m)) fail('Вхід вимкнено на сервері. Власнику: увімкніть Anonymous sign-ins у Supabase.');
     if (/row-level security|permission denied/i.test(m)) fail('Немає доступу до цієї дії.');
     if (/rate limit/i.test(m)) fail('Забагато спроб. Спробуйте за кілька хвилин.');
+    if (/violates check constraint|violates .* constraint/i.test(m)) fail('Дані не пройшли перевірку. Перевірте поля й спробуйте ще раз. Якщо не допоможе, напишіть у підтримку Їжака.');
     fail(m);
   }
   return data;
