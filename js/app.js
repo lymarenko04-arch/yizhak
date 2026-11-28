@@ -49,17 +49,22 @@ const shopFields = (s = {}, withContact = false) => `
   ${withContact ? `<div class="field"><label for="s-contact">Як до вас звертатися (необов’язково)</label><input id="s-contact" name="contact" type="text" autocomplete="name" placeholder="Олена"></div>` : ''}
   <label class="check"><input type="checkbox" name="halal" ${s.halal ? 'checked' : ''}><span><b>Продаємо халяль</b><br><span class="meta">Лише з чинним сертифікатом. Покупці побачать позначку «халяль».</span></span></label>`;
 
-const termsBox = () => `<div class="label" style="margin:6px 0 6px">Умови для закладів і правила щодо їжі</div>
-  <div class="terms terms-scroll" data-terms tabindex="0" aria-label="Умови для закладів">${TERMS_HTML}</div>
-  <p class="meta terms-need" style="margin:6px 0 8px">Прогорніть умови до кінця, щоб погодитися.</p>`;
+const WARN_IC = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20z"/><path d="M12 10v4"/><path d="M12 17.2v.01"/></svg>';
+// Умови згорнуті в одну помітну плашку. Натиснули — розгорнулись. Погодитися можна, лише дочитавши до кінця.
+const termsBox = () => `<details class="must" data-terms-box>
+  <summary><span class="must-ic">${WARN_IC}</span><span class="must-txt"><b>Умови для закладів і правила щодо їжі</b><span class="must-tag">Обов’язково до прочитання</span></span><span class="must-chev" aria-hidden="true"></span></summary>
+  <div class="terms must-body">${TERMS_HTML}<p class="must-end" data-terms-end>Кінець умов.</p></div>
+</details>
+<p class="meta terms-need" style="margin:6px 0 8px">Натисніть на плашку, прочитайте умови до кінця, і тоді можна буде погодитися.</p>`;
 const termsCheck = () => `${termsBox()}<label class="check"><input type="checkbox" name="terms" data-terms-ok disabled required><span><b>Я прочитав(ла) і погоджуюсь</b> з умовами для закладів і правилами щодо їжі</span></label>`;
-// Коли вікно з умовами прогорнуто до кінця (або воно й так уміщується), відкриваємо галочку чи кнопку.
-function termsRead(box) {
-  if (box.scrollTop + box.clientHeight < box.scrollHeight - 8) return;
-  const root = box.closest('form, .card') || document;
+// Коли кінець умов з’явився на екрані (плашку розгорнуто й дочитано) — відкриваємо галочку чи кнопку.
+const termsSeen = new IntersectionObserver(es => es.forEach(e => {
+  if (!e.isIntersecting) return;
+  const root = e.target.closest('form, .card') || document;
   root.querySelectorAll('[data-terms-ok]').forEach(el => { el.disabled = false; });
   const need = root.querySelector('.terms-need'); if (need) need.textContent = 'Дякуємо, що прочитали.';
-}
+  termsSeen.unobserve(e.target);
+}));
 V.terms = () => `${back('', 'Назад')}<h2>Правила Їжака</h2><div class="card"><h3 style="margin:0 0 8px">Для покупців</h3>${BUYER_RULES_HTML}</div><div class="card terms"><h3 style="margin:0 0 8px">Умови для закладів</h3>${TERMS_HTML}</div>`;
 
 const pwField = (id, auto) => `<div class="field"><label for="${id}">Пароль</label><input id="${id}" name="password" type="password" autocomplete="${auto}" minlength="6" required>
@@ -727,8 +732,7 @@ document.addEventListener('submit', e => {
   run(F[f.dataset.form])(Object.fromEntries(new FormData(f)), f).finally(() => { if (btn?.isConnected) btn.disabled = false; });
 });
 document.addEventListener('input', e => { if (e.target.matches?.('[data-city]')) showCities(e.target); });
-document.addEventListener('scroll', e => { if (e.target.matches?.('[data-terms]')) termsRead(e.target); }, true);
-document.addEventListener('yz:rendered', () => document.querySelectorAll('[data-terms]').forEach(termsRead));
+document.addEventListener('yz:rendered', () => document.querySelectorAll('[data-terms-end]').forEach(el => termsSeen.observe(el)));
 document.addEventListener('focusin', e => { if (e.target.matches?.('[data-city]')) showCities(e.target); });
 document.addEventListener('click', e => { if (!e.target.closest('.city-field')) document.querySelectorAll('.city-sug').forEach(b => { b.hidden = true; }); });
 document.addEventListener('change', run(async e => {
