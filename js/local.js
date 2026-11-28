@@ -233,7 +233,7 @@ export const localApi = {
       id: uid(), shop_id: s.id, title: o.title.trim().slice(0, 80), description: String(o.description || '').trim().slice(0, 600),
       category: o.category, photo: o.photo || null, old_price: Math.round(o.old_price), price: o.free ? 0 : Math.round(o.price), free: !!o.free,
       halal: !!(o.halal && s.halal), weight_kg: Math.max(0.1, Number(o.weight_kg) || 1), qty_total: Math.round(o.qty), qty_left: Math.round(o.qty),
-      pickup_from: o.pickup_from, pickup_to: o.pickup_to, expires_on: o.expires_on || null, status: 'active', created_at: now(),
+      pickup_from: o.pickup_from, pickup_to: o.pickup_to, expires_on: o.expires_on || null, surprise: !!o.surprise, status: 'active', created_at: now(),
     };
     db.offers.push(off); save(db); return off;
   },

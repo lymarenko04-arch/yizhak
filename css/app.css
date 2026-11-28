@@ -343,3 +343,12 @@ html.fs1 .slot{font-size:16px}
 .must-ic .ok-ic{display:none}
 .must.done .must-ic svg{display:none}
 .must.done .must-ic .ok-ic{display:block}
+
+/* Сюрприз-бокс */
+.surprise-tile{background:linear-gradient(135deg,var(--brown),#C98A3D);color:#fff;display:flex;align-items:center;justify-content:center;position:relative}
+.surprise-tile b{position:absolute;right:14px;top:8px;font-size:34px;font-weight:900;opacity:.85}
+.pill.surprise{background:var(--brown);color:var(--on-brown)}
+.surprise-card{border:2px dashed var(--brown);background:var(--brown-soft)}
+.surprise-card svg{vertical-align:-4px}
+.kind-seg button{display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.2}
+.kind-seg button svg{display:inline;vertical-align:-3px}

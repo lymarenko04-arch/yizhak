@@ -105,6 +105,7 @@ const PIC = {
   bowl: '<path d="M3 12h18a9 6 0 0 1-18 0z"/><path d="M9 4c0 2 1.5 2 1.5 4M14 4c0 2 1.5 2 1.5 4"/>',
   meat: '<path d="M15 4a5 5 0 0 1 5 5c0 4-4 6-7 6l-4 4"/><path d="M9 19l-2 2-2-2 1-1-1-1 2-2 2 2"/><path d="M15 4c-4 0-6 4-6 7"/>',
   bag: '<path d="M4 7h16l-1.5 11a2 2 0 0 1-2 1.7h-9a2 2 0 0 1-2-1.7z"/><path d="M9 7a3 3 0 0 1 6 0"/>',
+  gift: '<rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v8h14v-8M12 8v13"/><path d="M12 8c-1.5-4-6-4-6-1.5S10 8 12 8zM12 8c1.5-4 6-4 6-1.5S14 8 12 8z"/>',
 };
 export const pic = (k, s = 24) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PIC[k] || PIC.bag}</svg>`;
 export const catLook = c => CAT_LOOK[c] || CAT_LOOK.mix;
@@ -142,6 +143,7 @@ export function mapsUrl(shop) {
 }
 
 export function thumb(o, cls = 'thumb') {
+  if (o.surprise) return `<div class="${cls}${cls === 'photo' ? ' tile' : ''} surprise-tile">${pic('gift', cls === 'photo' ? 64 : 34)}${cls === 'photo' ? '<b>?</b>' : ''}</div>`;
   if (o.photo) return `<img class="${cls}" src="${esc(o.photo)}" alt="" loading="lazy">`;
   const [k, c] = catLook(o.category);
   return `<div class="${cls}${cls === 'photo' ? ' tile' : ''}" style="background:${c}">${pic(k, cls === 'photo' ? 64 : 34)}</div>`;

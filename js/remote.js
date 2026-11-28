@@ -17,6 +17,7 @@ function ok({ data, error }) {
     if (/anonymous/i.test(m)) fail('Вхід вимкнено на сервері. Власнику: увімкніть Anonymous sign-ins у Supabase.');
     if (/row-level security|permission denied/i.test(m)) fail('Немає доступу до цієї дії.');
     if (/rate limit/i.test(m)) fail('Забагато спроб. Спробуйте за кілька хвилин.');
+    if (/surprise_cheap/.test(m)) fail('Сюрприз-бокс має бути щонайменше вдвічі дешевшим за цінність продуктів.');
     if (/expiry_rule/.test(m)) fail('Термін придатності закороткий для цього набору. Молочне й м’ясо: щонайменше 2 дні після дня видачі, мікс: 1 день, інше: не раніше дня видачі.');
     if (/gmaps_url_ok/.test(m)) fail('Посилання має бути з Google Maps.');
     if (/row-level security/i.test(m) && /offers/i.test(m)) fail('Спершу прийміть умови для закладів у кабінеті магазину.');
@@ -245,6 +246,7 @@ export const remoteApi = {
     if (!(o.old_price > 0)) fail('Вкажіть звичайну вартість продуктів.');
     if (!o.free && !(o.price > 0)) fail('Вкажіть ціну зі знижкою або оберіть «Безкоштовно».');
     if (!o.free && o.price >= o.old_price) fail('Ціна зі знижкою має бути меншою за звичайну.');
+    if (o.surprise && !o.free && o.price * 2 > o.old_price) fail('Сюрприз-бокс має бути щонайменше вдвічі дешевшим за цінність продуктів.');
     if (!(o.qty >= 1)) fail('Вкажіть кількість наборів.');
     if (!(new Date(o.pickup_to) > new Date())) fail('Час видачі вже минув. Перевірте день і години.');
     if (new Date(o.pickup_to) <= new Date(o.pickup_from)) fail('Кінець видачі має бути пізніше за початок.');
@@ -255,7 +257,7 @@ export const remoteApi = {
     return offerOut(ok(await sb.from('offers').insert({
       shop_id: s.id, title: o.title.trim().slice(0, 80), description: String(o.description || '').trim().slice(0, 600), category: o.category,
       photo_url, old_price: Math.round(o.old_price), price: o.free ? 0 : Math.round(o.price), free: !!o.free, halal: !!(o.halal && s.halal),
-      weight_kg: Math.max(0.1, Number(o.weight_kg) || 1), qty_total: qty, qty_left: qty, pickup_from: o.pickup_from, pickup_to: o.pickup_to, expires_on: o.expires_on,
+      weight_kg: Math.max(0.1, Number(o.weight_kg) || 1), qty_total: qty, qty_left: qty, pickup_from: o.pickup_from, pickup_to: o.pickup_to, expires_on: o.expires_on, surprise: !!o.surprise,
     }).select().single()));
   },
 

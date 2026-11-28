@@ -90,3 +90,7 @@ begin
 end $$;
 
 select 'ok' as result;
+
+-- Сюрприз-бокс
+alter table public.offers add column if not exists surprise boolean not null default false;
+alter table public.offers add constraint surprise_cheap check (not surprise or free or price * 2 <= old_price);

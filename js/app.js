@@ -171,8 +171,8 @@ V.profile = async () => {
 // ----- покупець -----
 V.feed = async () => {
   const all = await api.listOffers({ city: st.user.city });
-  const list = all.filter(o => st.cat === 'all' || (st.cat === 'free' ? o.free : st.cat === 'halal' ? o.halal : o.category === st.cat));
-  const chips = [['all', 'Усе'], ['free', 'Безкоштовно'], ...Object.entries(CATS), ['halal', 'Халяль']];
+  const list = all.filter(o => st.cat === 'all' || (st.cat === 'free' ? o.free : st.cat === 'halal' ? o.halal : st.cat === 'surprise' ? o.surprise : o.category === st.cat));
+  const chips = [['all', 'Усе'], ['free', 'Безкоштовно'], ['surprise', 'Сюрприз-бокс'], ...Object.entries(CATS), ['halal', 'Халяль']];
   st.mapOffers = list;
   return `${tourOffer()}<h2>Поруч із вами</h2><p class="sub">${esc(st.user.city)} · ціна остаточна, оплата в магазині</p>
   <div class="seg"><button class="${st.view === 'list' ? 'on' : ''}" data-act="view" data-v="list">Список</button><button class="${st.view === 'map' ? 'on' : ''}" data-act="view" data-v="map">Мапа</button></div>
@@ -188,7 +188,7 @@ function offerCard(o) {
   return `<a class="card offer" href="#/offer/${o.id}" style="margin:0">${thumb(o)}
   <div class="body"><div class="t">${esc(o.title)}</div><div class="s">${esc(o.shop.name)}</div>
   <div class="wh">${ic.clock}<span>${when(o.pickup_from, o.pickup_to)}</span></div>
-  <div class="price">${priceHtml(o)}${o.free ? '<span class="pill brown">для пільговиків</span>' : ''}${o.halal ? '<span class="pill brown">халяль</span>' : ''}</div>
+  <div class="price">${o.surprise && !o.free ? `<b>${money(o.price)}</b><s>цінність ${money(o.old_price)}</s>` : priceHtml(o)}${o.surprise ? '<span class="pill surprise">сюрприз</span>' : ''}${o.free ? '<span class="pill brown">для пільговиків</span>' : ''}${o.halal ? '<span class="pill brown">халяль</span>' : ''}</div>
   <div class="left">${o.qty_left === 1 ? 'Залишився 1 набір' : `Залишилось наборів: ${o.qty_left}`}</div></div></a>`;
 }
 
@@ -199,7 +199,8 @@ V.offer = async id => {
   return `${back('feed', 'До наборів')}${thumb(o, 'photo')}
   <div class="row"><h2 style="margin:0">${esc(o.title)}</h2></div>
   <div class="price" style="margin:6px 0 10px">${priceHtml(o)}${!o.free ? `<span class="pill">−${Math.round((1 - o.price / o.old_price) * 100)}%</span>` : ''}${o.halal ? '<span class="pill brown">халяль</span>' : ''}</div>
-  ${o.description ? `<p style="margin:0 0 12px">${esc(o.description)}</p>` : ''}
+  ${o.surprise ? `<div class="card surprise-card"><b>${pic('gift', 20)} Сюрприз-бокс</b><p style="margin:6px 0 0">Що саме всередині, ви дізнаєтесь при отриманні. Переважно: <b>${CATS[o.category] || 'різне'}</b>.${o.free ? '' : ` Цінність продуктів — від <b>${money(o.old_price)}</b>, ви платите <b>${money(o.price)}</b>.`}</p>${o.description ? `<p class="meta" style="margin:6px 0 0">Підказка від магазину: ${esc(o.description)}</p>` : ''}</div>`
+    : o.description ? `<p style="margin:0 0 12px">${esc(o.description)}</p>` : ''}
   ${o.expires_on ? `<p class="meta" style="margin:0 0 12px">Придатне щонайменше до <b>${new Date(o.expires_on + 'T12:00').toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })}</b></p>` : ''}
   <div class="card"><div class="label">Де і коли забрати</div><p style="margin:6px 0 2px"><b>${esc(o.shop.name)}</b>${o.shop.verified ? ' <span class="pill">перевірений</span>' : ''}</p>
   <div class="meta" style="margin:0">${esc(o.shop.city)}, ${esc(o.shop.address)}</div>
@@ -299,7 +300,7 @@ function fixWhen(n) {
 }
 function newOfferState() {
   const start = Math.min(Math.max(Math.ceil((nowMin() + 1) / 30) * 30, 7 * 60), 22 * 60 + 30);
-  return { photo: null, title: '', description: '', category: 'bake', old_price: '', mode: '50', price: '', qty: 3, weight_kg: 1.5, day: 'today', from: hhmm(start), dur: 120, halal: false };
+  return { kind: 'set', photo: null, title: '', description: '', category: 'bake', old_price: '', mode: '50', price: '', qty: 3, weight_kg: 1.5, day: 'today', from: hhmm(start), dur: 120, halal: false };
 }
 function whenPicker(n) {
   fixWhen(n); const from = toMin(n.from);
@@ -314,21 +315,26 @@ function whenPicker(n) {
   </div>`;
 }
 V['shop-new'] = async () => {
-  const s = await api.myShop(); const n = st.nf ||= newOfferState();
+  const s = await api.myShop(); const n = st.nf ||= newOfferState(); const sur = n.kind === 'surprise';
   const old = Number(n.old_price) || 0, auto = m => Math.round(old * (1 - m / 100));
   const price = n.mode === 'free' ? 0 : n.mode === 'own' ? Number(n.price) || 0 : auto(+n.mode);
-  return `${back('shop')}<h2>Новий набір</h2><p class="sub">Сфотографуйте продукти й коротко опишіть. Точність не обов’язкова.</p>
+  return `${back('shop')}<h2>Новий набір</h2>
+  <div class="seg kind-seg" role="group" aria-label="Вид набору">
+    <button type="button" class="${sur ? '' : 'on'}" data-act="kind" data-k="set" aria-pressed="${!sur}">Звичайний набір<span class="sd">покупець бачить, що всередині</span></button>
+    <button type="button" class="${sur ? 'on' : ''}" data-act="kind" data-k="surprise" aria-pressed="${sur}">${pic('gift', 18)} Сюрприз-бокс<span class="sd">без сортування й фото, удвічі дешевше</span></button>
+  </div>
+  <p class="sub" style="margin-top:10px">${sur ? 'Складіть у пакет те, що не встигли продати. Покупець дізнається вміст лише при отриманні, тому ціна має бути щонайменше <b>вдвічі нижча</b> за цінність.' : 'Сфотографуйте продукти й коротко опишіть. Точність не обов’язкова.'}</p>
   <form data-form="offer" novalidate>
-  <div class="field"><label for="o-photo">Фото</label>
+  ${sur ? '' : `<div class="field"><label for="o-photo">Фото</label>
   ${n.photo ? `<img class="photo" src="${n.photo}" alt="Фото набору">` : ''}
   <label class="btn ghost wide" for="o-photo" style="cursor:pointer">${ic.camera}${n.photo ? 'Змінити фото' : 'Зробити або вибрати фото'}</label>
-  <input id="o-photo" type="file" accept="image/*" capture="environment" class="sr"></div>
-  <div class="field"><label for="o-title">Назва</label><input id="o-title" name="title" type="text" maxlength="80" value="${esc(n.title)}" placeholder="Набір «Хлібний вечір»"></div>
-  <div class="field"><label for="o-desc">Що всередині</label><textarea id="o-desc" name="description" rows="3" maxlength="600" placeholder="Хліб, батон, 5 булочок. Спечено сьогодні.">${esc(n.description)}</textarea></div>
-  <div class="field"><label for="o-cat">Категорія</label><select id="o-cat" name="category">${Object.entries(CATS).map(([k, v]) => `<option value="${k}" ${k === n.category ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-  <div class="field"><label for="o-old">Звичайна вартість продуктів, ₴</label><input id="o-old" name="old_price" type="number" inputmode="numeric" min="1" value="${esc(n.old_price)}" placeholder="1000"><span class="hint">Приблизна сума, якби покупець купував усе за звичайною ціною.</span></div>
+  <input id="o-photo" type="file" accept="image/*" capture="environment" class="sr"></div>`}
+  <div class="field"><label for="o-title">Назва</label><input id="o-title" name="title" type="text" maxlength="80" value="${esc(n.title)}" placeholder="${sur ? 'Сюрприз-бокс' : 'Набір «Хлібний вечір»'}"></div>
+  <div class="field"><label for="o-desc">${sur ? 'Підказка для покупця (необов’язково)' : 'Що всередині'}</label><textarea id="o-desc" name="description" rows="${sur ? 2 : 3}" maxlength="600" placeholder="${sur ? 'Наприклад: овочі, м’ясо, бакалія. Можуть бути алергени: молоко.' : 'Хліб, батон, 5 булочок. Спечено сьогодні.'}">${esc(n.description)}</textarea>${sur ? '<span class="hint">Без точного списку. Згадайте алергени, якщо вони можуть бути.</span>' : ''}</div>
+  <div class="field"><label for="o-cat">${sur ? 'Що переважно в боксі' : 'Категорія'}</label><select id="o-cat" name="category">${Object.entries(CATS).map(([k, v]) => `<option value="${k}" ${k === n.category ? 'selected' : ''}>${v}</option>`).join('')}</select>${sur ? '<span class="hint">Якщо в боксі є молочне чи м’ясо, оберіть цю категорію: від неї залежить мінімальний термін придатності.</span>' : ''}</div>
+  <div class="field"><label for="o-old">${sur ? 'Цінність продуктів у боксі, ₴' : 'Звичайна вартість продуктів, ₴'}</label><input id="o-old" name="old_price" type="number" inputmode="numeric" min="1" value="${esc(n.old_price)}" placeholder="1000"><span class="hint">${sur ? 'Скільки коштувало б усе за звичайними цінами. Покупець побачить: «цінність від …».' : 'Приблизна сума, якби покупець купував усе за звичайною ціною.'}</span></div>
   <div class="label" style="margin:0 0 8px">Ціна для покупця</div>
-  <div class="modes">${['30', '50', '70'].map(m => `<button type="button" class="${n.mode === m ? 'on' : ''}" data-act="mode" data-m="${m}">−${m}%${old ? `<br><span class="meta">${money(auto(+m))}</span>` : ''}</button>`).join('')}
+  <div class="modes">${(sur ? ['50', '60', '70'] : ['30', '50', '70']).map(m => `<button type="button" class="${n.mode === m ? 'on' : ''}" data-act="mode" data-m="${m}">−${m}%${old ? `<br><span class="meta">${money(auto(+m))}</span>` : ''}</button>`).join('')}
   <button type="button" class="${n.mode === 'own' ? 'on' : ''}" data-act="mode" data-m="own">Своя ціна</button>
   <button type="button" class="${n.mode === 'free' ? 'on' : ''}" data-act="mode" data-m="free" style="grid-column:span 2">Безкоштовно пільговикам</button></div>
   ${n.mode === 'own' ? `<div class="field"><label for="o-price">Ваша ціна, ₴</label><input id="o-price" name="price" type="number" inputmode="numeric" min="1" value="${esc(n.price)}"></div>` : ''}
@@ -624,6 +630,7 @@ const A = {
   star: el => { st.stars[el.dataset.id] = +el.dataset.n; render(); },
   close: async el => { if (!confirm('Зняти набір з продажу?')) return; await api.closeOffer(el.dataset.id); toast('Набір знято.'); render(); },
   mode: el => { saveNf(); st.nf.mode = el.dataset.m; render(); },
+  kind: el => { saveNf(); st.nf.kind = el.dataset.k; if (st.nf.kind === 'surprise') { st.nf.photo = null; if (+st.nf.mode && +st.nf.mode < 50) st.nf.mode = '50'; } render(); },
   fontsize: el => { if (el.dataset.v) localStorage.setItem('yizhak.fs', el.dataset.v); else localStorage.removeItem('yizhak.fs'); applyFs(); render(); },
   tour: async () => { const role = st.user?.role; let ctx = {};
     if (role === 'buyer') { const o = await api.listOffers({ city: st.user.city }); ctx.firstOffer = o.find(x => x.status === 'active' && x.qty_left > 0)?.id; }
@@ -694,10 +701,11 @@ const F = {
     const base = new Date(); if (n.day === 'tomorrow') base.setDate(base.getDate() + 1);
     const at = hm => { const d = new Date(base); const [h, m] = String(hm).split(':'); d.setHours(+h, +m || 0, 0, 0); return d.toISOString(); };
     const price = n.mode === 'free' ? 0 : n.mode === 'own' ? Number(n.price) : Math.round(old * (1 - n.mode / 100));
+    const sur = n.kind === 'surprise'; if (sur && !String(n.title || '').trim()) n.title = 'Сюрприз-бокс';
     if (!n.expires_on) throw new Error('Вкажіть найближчий термін придатності в наборі.');
     if (n.expires_on < minExpiry(n)) throw new Error(`Термін закороткий. ${expiryRule(n.category)}`);
     await api.createOffer({ title: n.title, description: n.description, category: n.category, photo: n.photo, old_price: old, price, free: n.mode === 'free',
-      qty: Number(n.qty), weight_kg: Number(n.weight_kg), pickup_from: at(n.from), pickup_to: at(n.to), halal: n.halal, expires_on: n.expires_on });
+      qty: Number(n.qty), weight_kg: Number(n.weight_kg), pickup_from: at(n.from), pickup_to: at(n.to), halal: n.halal, expires_on: n.expires_on, surprise: sur, photo: sur ? null : n.photo });
     st.nf = null; toast('Опубліковано. Покупці поруч уже бачать набір.'); go('shop');
   },
   code: async d => { st.found = await api.findByCode(d.code); if (!st.found) toast('Активної броні з таким кодом немає. Перевірте цифри.'); render(); },
