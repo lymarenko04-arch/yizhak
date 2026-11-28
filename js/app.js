@@ -2,7 +2,7 @@ import { CONFIG, CITIES, findCities, canonCity } from './config.js';
 import { api } from './store.js';
 import { cityCenter } from './local.js';
 import { startTour, BUYER_TOUR, SHOP_TOUR } from './tour.js';
-import { esc, num, money, kg, toast, ic, pic, catLook, CATS, GROUPS, GROUP_DOCS, SHOP_TYPES, LOGO, FACE, when, mapsUrl, thumb, resizeImage } from './ui.js';
+import { esc, num, money, kg, toast, ic, pic, catLook, CATS, GROUPS, GROUP_DOCS, SHOP_TYPES, LOGO, FACE, when, mapsUrl, thumb, resizeImage, EXPIRY_DAYS, expiryRule, GMAPS_RE, VERIFY_KG, TERMS_HTML } from './ui.js';
 
 const $ = s => document.querySelector(s);
 const st = { user: null, shop: null, cat: 'all', view: 'list', ownerOk: false, introDone: false, role: 'buyer', nf: null, found: null, stars: {} };
@@ -44,8 +44,14 @@ const shopFields = (s = {}, withContact = false) => `
   ${cityField('s-city', 'Місто', s.city || st.user?.city || '')}
   <div class="field"><label for="s-addr">Адреса</label><input id="s-addr" name="address" type="text" value="${esc(s.address || '')}" placeholder="вул. Соборна, 12" required>${addrHint}</div>
   <div class="field"><label for="s-type">Тип</label><select id="s-type" name="type">${SHOP_TYPES.map(t => `<option ${t === s.type ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+  <div class="field"><label for="s-gmaps">Ваш заклад у Google Maps (посилання)</label><input id="s-gmaps" name="gmaps_url" type="url" inputmode="url" value="${esc(s.gmaps_url || '')}" placeholder="https://maps.app.goo.gl/…">
+  <span class="hint">Відкрийте свій заклад у Google Maps → «Поділитися» → «Копіювати посилання». Потрібно для позначки «Перевірений».</span></div>
   ${withContact ? `<div class="field"><label for="s-contact">Як до вас звертатися (необов’язково)</label><input id="s-contact" name="contact" type="text" autocomplete="name" placeholder="Олена"></div>` : ''}
   <label class="check"><input type="checkbox" name="halal" ${s.halal ? 'checked' : ''}><span><b>Продаємо халяль</b><br><span class="meta">Лише з чинним сертифікатом. Покупці побачать позначку «халяль».</span></span></label>`;
+
+const termsBox = () => `<details class="terms-box"><summary class="link-btn" style="display:list-item;text-align:left">Прочитати умови для закладів</summary><div class="terms">${TERMS_HTML}</div></details>`;
+const termsCheck = () => `${termsBox()}<label class="check"><input type="checkbox" name="terms" required><span><b>Погоджуюсь з умовами для закладів</b> і правилами щодо їжі</span></label>`;
+V.terms = () => `${back('', 'Назад')}<h2>Умови для закладів</h2><div class="card terms">${TERMS_HTML}</div>`;
 
 const pwField = (id, auto) => `<div class="field"><label for="${id}">Пароль</label><input id="${id}" name="password" type="password" autocomplete="${auto}" minlength="6" required>
   <label class="check" style="margin-top:8px"><input type="checkbox" data-pw="${id}"><span>Показати пароль</span></label></div>`;
@@ -79,6 +85,7 @@ V.login = () => {
   <p class="sub">Одна форма, і ваш заклад з’явиться на мапі Їжака.</p>
   ${testNote()}
   <form data-form="shopjoin" novalidate>${shopFields({}, true)}
+  ${termsCheck()}
   <button class="btn wide">Зареєструвати заклад</button></form>
   ${emailOn() ? lmLink('in', 'Вже маєте акаунт із поштою? Увійти') : ''}`;
   return `${head}
@@ -178,7 +185,8 @@ V.offer = async id => {
   <div class="row"><h2 style="margin:0">${esc(o.title)}</h2></div>
   <div class="price" style="margin:6px 0 10px">${priceHtml(o)}${!o.free ? `<span class="pill">−${Math.round((1 - o.price / o.old_price) * 100)}%</span>` : ''}${o.halal ? '<span class="pill brown">халяль</span>' : ''}</div>
   ${o.description ? `<p style="margin:0 0 12px">${esc(o.description)}</p>` : ''}
-  <div class="card"><div class="label">Де і коли забрати</div><p style="margin:6px 0 2px"><b>${esc(o.shop.name)}</b></p>
+  ${o.expires_on ? `<p class="meta" style="margin:0 0 12px">Придатне щонайменше до <b>${new Date(o.expires_on + 'T12:00').toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' })}</b></p>` : ''}
+  <div class="card"><div class="label">Де і коли забрати</div><p style="margin:6px 0 2px"><b>${esc(o.shop.name)}</b>${o.shop.verified ? ' <span class="pill">перевірений</span>' : ''}</p>
   <div class="meta" style="margin:0">${esc(o.shop.city)}, ${esc(o.shop.address)}</div>
   <p style="margin:8px 0 0">${when(o.pickup_from, o.pickup_to)} · залишилось ${o.qty_left} з ${o.qty_total}</p>
   <a class="btn ghost wide" style="margin-top:12px" href="${mapsUrl(o.shop)}" target="_blank" rel="noopener">${ic.route}Маршрут у Google Maps</a></div>
@@ -237,7 +245,14 @@ V.shop = async () => {
   const picked = rs.filter(r => r.status === 'picked'), paid = picked.filter(r => !r.free);
   const rev = paid.reduce((a, r) => a + r.price, 0), fee = set.commissionOn ? Math.round(rev * set.rate / 100) : 0;
   const live = offers.filter(o => o.status === 'active'), waiting = rs.filter(r => r.status === 'reserved');
-  return `${tourOffer()}<h2>${esc(s.name)}</h2><p class="sub">${s.shop_no ? `№ ${s.shop_no} · ` : ''}${esc(s.city)}, ${esc(s.address)}</p>
+  const pkg = picked.reduce((a, r) => a + Number(r.weight_kg), 0);
+  const termsCard = s.terms_at ? '' : `<div class="card notice-card"><b>Прийміть умови для закладів</b><p class="meta" style="margin:6px 0 8px">Без цього не можна викладати нові набори.</p>${termsBox()}
+    <button class="btn wide" style="margin-top:8px" data-act="acceptterms">Погоджуюсь з умовами</button></div>`;
+  const verCard = s.verified ? '' : `<div class="card"><div class="label">До позначки «Перевірений»</div>
+    <div class="bar" style="margin:8px 0 6px"><span style="width:${Math.min(100, pkg / VERIFY_KG * 100)}%"></span></div>
+    <p class="meta" style="margin:0">${kg(pkg)} з ${VERIFY_KG} кг видано · Google Maps: ${s.gmaps_url ? '<b>додано ✓</b>' : '<a href="#/shop-setup">додайте посилання</a>'}</p></div>`;
+  return `${tourOffer()}<h2>${esc(s.name)}${s.verified ? ' <span class="pill">перевірений</span>' : ''}</h2><p class="sub">${s.shop_no ? `№ ${s.shop_no} · ` : ''}${esc(s.city)}, ${esc(s.address)}</p>
+  ${termsCard}${verCard}
   <div class="card hero"><div class="label">Отримано замість списання</div><div class="big">${money(rev - fee)}</div>
   <p class="meta" style="margin:4px 0 0">${set.commissionOn ? `Комісія сервісу ${set.rate}%: ${money(fee)}` : 'Комісія сервісу 0%: пілотний період'}</p></div>
   <div class="split"><div class="card"><div class="label">Врятовано</div><div class="big">${kg(picked.reduce((a, r) => a + r.weight_kg, 0))}</div></div>
@@ -306,9 +321,17 @@ V['shop-new'] = async () => {
   <div class="two"><div class="field"><label for="o-qty">Скільки наборів</label><input id="o-qty" name="qty" type="number" inputmode="numeric" min="1" max="200" value="${esc(n.qty)}"></div>
   <div class="field"><label for="o-kg">Вага одного, кг</label><input id="o-kg" name="weight_kg" type="number" inputmode="decimal" min="0.1" step="0.1" value="${esc(n.weight_kg)}"></div></div>
   ${whenPicker(n)}
+  ${expiryField(n)}
   ${s.halal ? `<label class="check"><input type="checkbox" name="halal" ${n.halal ? 'checked' : ''}><span><b>Халяль</b>: товар має сертифікат</span></label>` : ''}
   <button class="btn wide">Опублікувати</button></form>`;
 };
+
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Найраніший дозволений термін: день видачі + запас за категорією.
+function minExpiry(n) { const d = new Date(); if (n.day === 'tomorrow') d.setDate(d.getDate() + 1); d.setDate(d.getDate() + (EXPIRY_DAYS[n.category] || 0)); return ymd(d); }
+const expiryField = n => `<div class="field"><label for="o-exp">Найближчий термін придатності в наборі</label>
+  <input id="o-exp" name="expires_on" type="date" min="${minExpiry(n)}" value="${esc(n.expires_on || '')}" required>
+  <span class="hint">${expiryRule(n.category)} <a href="#/terms">Правила</a></span></div>`;
 
 V['shop-check'] = () => {
   const r = st.found;
@@ -409,6 +432,7 @@ function analyze(d) {
       sellThrough: posted ? picked.length / posted : null,
       rating: rated.length ? rated.reduce((a, r) => a + r.rating, 0) / rated.length : null,
       live: d.offers.filter(o => o.shop_id === s.id && o.status === 'active' && o.qty_left > 0 && new Date(o.pickup_to).getTime() > now).length,
+      kgAll: d.res.filter(x => x.shop_id === s.id && x.status === 'picked').reduce((a, x) => a + Number(x.weight_kg), 0),
       last,
     };
   }).sort((a, b) => b.kg - a.kg || b.issued - a.issued);
@@ -428,7 +452,7 @@ V['owner-shops'] = async () => {
   <div class="card"><div class="label">Не прийшли</div><div class="big">${num(t.noShow)}</div><div class="meta">броні, які згоріли</div></div></div>
   <div class="label" style="margin:10px 0 8px">Рейтинг магазинів за врятованою їжею</div>
   <div class="list">${rows.map((r, i) => `<a class="card shop-row" href="#/owner-shop/${r.s.id}" style="margin:0;display:block;color:inherit;text-decoration:none">
-    <div class="row"><b>${i + 1}. ${esc(r.s.name)}${r.s.shop_no ? ` <span class="meta">№ ${r.s.shop_no}</span>` : ''}</b>${r.s.verified ? '<span class="pill">перевірений</span>' : '<span class="pill brown">не перевірений</span>'}</div>
+    <div class="row"><b>${i + 1}. ${esc(r.s.name)}${r.s.shop_no ? ` <span class="meta">№ ${r.s.shop_no}</span>` : ''}</b>${r.s.hidden ? '<span class="pill" style="background:var(--red-soft);color:var(--red)">приховано</span>' : r.s.verified ? '<span class="pill">перевірений</span>' : '<span class="pill brown">не перевірений</span>'}</div>
     <div class="meta">${esc(r.s.type)} · ${esc(r.s.city)} · ${r.live ? `зараз ${r.live} набор(и)` : 'зараз наборів немає'}</div>
     <div class="mini-stats"><span><b>${kg(r.kg)}</b> врятовано</span><span><b>${num(r.issued)}</b> видано${r.freeN ? `, ${r.freeN} безкошт.` : ''}</span><span><b>${r.avgDisc == null ? '—' : '−' + pct(r.avgDisc)}</b> знижка</span><span><b>${r.sellThrough == null ? '—' : pct(r.sellThrough)}</b> розібрано</span></div>
   </a>`).join('') || '<p class="meta">Магазинів ще немає.</p>'}</div>`;
@@ -441,6 +465,14 @@ V['owner-shop'] = async id => {
   const sold = o => r.res.filter(x => x.offer_id === o.id && x.status === 'picked').length;
   return `${back('owner-shops', 'До магазинів')}<h2>${esc(s.name)}${s.shop_no ? ` <span class="meta">№ ${s.shop_no}</span>` : ''}</h2>
   <p class="sub">${esc(s.type)} · ${esc(s.city)}, ${esc(s.address)} · <a href="tel:${esc(s.phone)}">${esc(s.phone)}</a> · з ${new Date(s.created_at).toLocaleDateString('uk-UA')}</p>
+  <div class="card">
+    ${statLine('Умови для закладів', s.terms_at ? 'прийняті ' + new Date(s.terms_at).toLocaleDateString('uk-UA') : '<span style="color:var(--red)">не прийняті</span>')}
+    ${statLine('Google Maps', s.gmaps_url && GMAPS_RE.test(s.gmaps_url) ? `<a href="${esc(s.gmaps_url)}" target="_blank" rel="noopener">відкрити ↗</a>` : 'немає')}
+    ${statLine('Позначка', s.verified ? 'перевірений' : `ні (${kg(r.kgAll)} з ${VERIFY_KG} кг)`)}
+    ${statLine('Видно покупцям', s.hidden ? '<span style="color:var(--red)">приховано</span>' : 'так')}
+    <div class="two" style="margin-top:10px"><button class="btn ${s.hidden ? 'alt' : 'danger'} small" data-act="oshop" data-id="${s.id}" data-k="hidden" data-v="${s.hidden ? 0 : 1}">${s.hidden ? 'Показати заклад' : 'Приховати заклад'}</button>
+    <button class="btn ghost small" data-act="oshop" data-id="${s.id}" data-k="verified" data-v="${s.verified ? 0 : 1}">${s.verified ? 'Зняти «перевірений»' : 'Дати «перевірений»'}</button></div>
+  </div>
   ${periodSeg()}
   <div class="split"><div class="card"><div class="label">Врятовано</div><div class="big">${kg(r.kg)}</div><div class="meta">з них безкоштовно ${kg(r.kgFree)}</div></div>
   <div class="card"><div class="label">Видано</div><div class="big">${num(r.issued)}</div><div class="meta">безкоштовно ${num(r.freeN)}</div></div></div>
@@ -525,13 +557,13 @@ const NAV = {
   shop: [['shop', 'Зведення', ic.chart], ['shop-new', 'Новий набір', ic.add], ['shop-check', 'Видача', ic.box], ['profile', 'Профіль', ic.me]],
   owner: [['owner', 'Облік', ic.chart], ['owner-shops', 'Магазини', ic.box], ['owner-goal', 'Мета', ic.flag], ['profile', 'Профіль', ic.me]],
 };
-const ROLE_ROUTES = { buyer: ['feed', 'offer', 'my', 'onboard', 'profile'], shop: ['shop', 'shop-new', 'shop-check', 'shop-setup', 'shop-place', 'profile'], owner: ['profile'], registrar: ['profile'] };
+const ROLE_ROUTES = { buyer: ['feed', 'offer', 'my', 'onboard', 'profile', 'terms'], shop: ['shop', 'shop-new', 'shop-check', 'shop-setup', 'shop-place', 'profile', 'terms'], owner: ['profile', 'terms'], registrar: ['profile', 'terms'] };
 
 async function resolve(route) {
   const u = st.user = await api.me();
   if (api.mode === 'server') st.ownerOk = u?.role === 'owner' && (!route.startsWith('owner') || (await api.ownerState()).ok);
   if (route.startsWith('owner')) return st.ownerOk ? (route === 'owner-lock' ? 'owner' : route) : 'owner-lock';
-  if (!u) return route === 'login' ? 'login' : '';
+  if (!u) return ['login', 'terms'].includes(route) ? route : '';
   if (u.role === 'buyer' && !u.city) return 'onboard';
   if (u.role === 'shop' && !(await api.myShop())) return 'shop-setup';
   const home = u.role === 'shop' ? 'shop' : u.role === 'owner' ? 'owner' : 'feed';
@@ -583,6 +615,8 @@ const A = {
     startTour(role === 'shop' ? SHOP_TOUR : BUYER_TOUR, { go, ctx, onEnd: render }); },
   citypick: el => { const f = el.closest('.city-field'), i = f?.querySelector('[data-city]'); if (!i) return; i.value = el.dataset.v; f.querySelector('.city-sug').hidden = true; },
   mfastart: async () => { st.mfa = await api.mfaStart(); render(); },
+  acceptterms: async () => { await api.acceptTerms(); toast('Дякуємо! Тепер можна викладати набори.'); render(); },
+  oshop: async el => { await api.ownerSetShop(el.dataset.id, { [el.dataset.k]: el.dataset.v === '1' }); toast('Збережено.'); render(); },
   operiod: el => { st.oPeriod = el.dataset.v; render(); },
   lmode: el => { st.lm = el.dataset.m; render(); },
   tourno: () => { localStorage.setItem('yizhak.tourSeen', '1'); render(); },
@@ -633,6 +667,8 @@ const F = {
   shopjoin: async d => {
     d.city = canonCity(d.city); if (!d.city) throw new Error('Вкажіть місто закладу.');
     for (const k of ['name', 'phone', 'address']) if (!String(d[k] || '').trim()) throw new Error('Заповніть назву, телефон і адресу.');
+    if (!d.terms) throw new Error('Щоб зареєструвати заклад, погодьтеся з умовами для закладів.');
+    if (!String(d.gmaps_url || '').trim() && GMAPS_RE.test(String(d.address || '').trim())) d.gmaps_url = d.address.trim();
     const u = await api.signIn({ name: (d.contact || '').trim() || d.name, phone: d.phone, role: 'shop' });
     if (u.role !== 'shop') throw new Error('На цьому пристрої вже є інший акаунт Їжака. Зареєструйте заклад з телефона закладу.');
     await api.saveShop({ ...d, halal: !!d.halal });
@@ -643,8 +679,10 @@ const F = {
     const base = new Date(); if (n.day === 'tomorrow') base.setDate(base.getDate() + 1);
     const at = hm => { const d = new Date(base); const [h, m] = String(hm).split(':'); d.setHours(+h, +m || 0, 0, 0); return d.toISOString(); };
     const price = n.mode === 'free' ? 0 : n.mode === 'own' ? Number(n.price) : Math.round(old * (1 - n.mode / 100));
+    if (!n.expires_on) throw new Error('Вкажіть найближчий термін придатності в наборі.');
+    if (n.expires_on < minExpiry(n)) throw new Error(`Термін закороткий. ${expiryRule(n.category)}`);
     await api.createOffer({ title: n.title, description: n.description, category: n.category, photo: n.photo, old_price: old, price, free: n.mode === 'free',
-      qty: Number(n.qty), weight_kg: Number(n.weight_kg), pickup_from: at(n.from), pickup_to: at(n.to), halal: n.halal });
+      qty: Number(n.qty), weight_kg: Number(n.weight_kg), pickup_from: at(n.from), pickup_to: at(n.to), halal: n.halal, expires_on: n.expires_on });
     st.nf = null; toast('Опубліковано. Покупці поруч уже бачать набір.'); go('shop');
   },
   code: async d => { st.found = await api.findByCode(d.code); if (!st.found) toast('Активної броні з таким кодом немає. Перевірте цифри.'); render(); },
@@ -684,7 +722,7 @@ document.addEventListener('click', e => { if (!e.target.closest('.city-field')) 
 document.addEventListener('change', run(async e => {
   if (e.target.dataset.pw) { const i = document.getElementById(e.target.dataset.pw); if (i) i.type = e.target.checked ? 'text' : 'password'; }
   else if (e.target.id === 'o-photo' && e.target.files[0]) { saveNf(); st.nf.photo = await resizeImage(e.target.files[0]); render(); }
-  else if (e.target.closest('form[data-form="offer"]') && ['o-old', 'o-price'].includes(e.target.id)) { saveNf(); render(); }
+  else if (e.target.closest('form[data-form="offer"]') && ['o-old', 'o-price', 'o-cat'].includes(e.target.id)) { saveNf(); render(); }
 }));
 // Прихований вхід власника: 5 швидких натискань на логотип.
 let taps = 0, tapT = 0;

@@ -3,6 +3,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.4';
 import { CONFIG, CITIES } from './config.js';
 import { resolvePlace, okPoint, normPhone } from './local.js';
+import { GMAPS_RE, EXPIRY_DAYS } from './ui.js';
 
 const sb = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: 'yizhak.auth' },
@@ -16,6 +17,9 @@ function ok({ data, error }) {
     if (/anonymous/i.test(m)) fail('Вхід вимкнено на сервері. Власнику: увімкніть Anonymous sign-ins у Supabase.');
     if (/row-level security|permission denied/i.test(m)) fail('Немає доступу до цієї дії.');
     if (/rate limit/i.test(m)) fail('Забагато спроб. Спробуйте за кілька хвилин.');
+    if (/expiry_rule/.test(m)) fail('Термін придатності закороткий для цього набору. Молочне й м’ясо: щонайменше 2 дні після дня видачі, мікс: 1 день, інше: не раніше дня видачі.');
+    if (/gmaps_url_ok/.test(m)) fail('Посилання має бути з Google Maps.');
+    if (/row-level security/i.test(m) && /offers/i.test(m)) fail('Спершу прийміть умови для закладів у кабінеті магазину.');
     if (/violates check constraint|violates .* constraint/i.test(m)) fail('Дані не пройшли перевірку. Перевірте поля й спробуйте ще раз. Якщо не допоможе, напишіть у підтримку Їжака.');
     fail(m);
   }
@@ -203,11 +207,29 @@ export const remoteApi = {
     for (const k of ['name', 'type', 'city', 'address', 'phone']) if (!String(data[k] || '').trim()) fail('Заповніть усі поля магазину.');
     const cur = await myShop();
     const row = { name: data.name.trim(), type: data.type, city: data.city, address: data.address.trim(), phone: data.phone.trim(), halal: !!data.halal };
+    if ('gmaps_url' in data) {
+      const g = String(data.gmaps_url || '').trim();
+      if (g && !GMAPS_RE.test(g)) fail('Посилання має бути з Google Maps: відкрийте свій заклад у Google Maps → «Поділитися» → «Копіювати посилання».');
+      row.gmaps_url = g || null;
+    }
+    if (data.terms && !cur?.terms_at) row.terms_at = new Date().toISOString();
     if (!cur || cur.address !== row.address || cur.city !== row.city) Object.assign(row, await resolvePlace(row.address, row.city));
     shopCache = cur
       ? ok(await sb.from('shops').update(row).eq('id', cur.id).select().single())
       : ok(await sb.from('shops').insert({ ...row, owner_id: id }).select().single());
+    if (shopCache.gmaps_url && !shopCache.verified && (await sb.rpc('refresh_verified', { p_shop: shopCache.id })).data) shopCache = ok(await sb.from('shops').select('*').eq('id', shopCache.id).single());
     return shopCache;
+  },
+
+  async acceptTerms() {
+    const s = await needShop();
+    shopCache = ok(await sb.from('shops').update({ terms_at: new Date().toISOString() }).eq('id', s.id).select().single());
+    return shopCache;
+  },
+  // Власник: приховати / показати заклад, поставити / зняти «перевірений».
+  async ownerSetShop(id, patch) {
+    const row = {}; for (const k of ['hidden', 'verified']) if (k in patch) row[k] = !!patch[k];
+    return ok(await sb.from('shops').update(row).eq('id', id).select().single());
   },
 
   async setShopPoint(lat, lng) {
@@ -226,12 +248,14 @@ export const remoteApi = {
     if (!(o.qty >= 1)) fail('Вкажіть кількість наборів.');
     if (!(new Date(o.pickup_to) > new Date())) fail('Час видачі вже минув. Перевірте день і години.');
     if (new Date(o.pickup_to) <= new Date(o.pickup_from)) fail('Кінець видачі має бути пізніше за початок.');
+    if (!s.terms_at) fail('Спершу прийміть умови для закладів у кабінеті магазину.');
+    if (!o.expires_on) fail('Вкажіть найближчий термін придатності в наборі.');
     const photo_url = await uploadPhoto(o.photo, s.id);
     const qty = Math.round(o.qty);
     return offerOut(ok(await sb.from('offers').insert({
       shop_id: s.id, title: o.title.trim().slice(0, 80), description: String(o.description || '').trim().slice(0, 600), category: o.category,
       photo_url, old_price: Math.round(o.old_price), price: o.free ? 0 : Math.round(o.price), free: !!o.free, halal: !!(o.halal && s.halal),
-      weight_kg: Math.max(0.1, Number(o.weight_kg) || 1), qty_total: qty, qty_left: qty, pickup_from: o.pickup_from, pickup_to: o.pickup_to,
+      weight_kg: Math.max(0.1, Number(o.weight_kg) || 1), qty_total: qty, qty_left: qty, pickup_from: o.pickup_from, pickup_to: o.pickup_to, expires_on: o.expires_on,
     }).select().single()));
   },
 

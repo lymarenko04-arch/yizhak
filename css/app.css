@@ -302,3 +302,12 @@ html.fs1 .slot{font-size:16px}
 .kv:last-child{border-bottom:0}
 .kv b{text-align:right}
 .shop-row:hover{border-color:var(--green)}
+
+/* Умови для закладів */
+.terms h3{margin:12px 0 6px;font-size:17px}
+.terms h3:first-child{margin-top:0}
+.terms ul{margin:0 0 8px;padding-left:20px}
+.terms li{margin:0 0 6px;line-height:1.45}
+.terms-box{margin:4px 0 8px}
+.terms-box .terms{background:var(--field);border-radius:12px;padding:12px 14px;margin-top:6px}
+.notice-card{border:2px solid var(--brown)}

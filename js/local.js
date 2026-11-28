@@ -144,7 +144,7 @@ export const localApi = {
     return db.offers
       .filter(o => o.status === 'active' && o.qty_left > 0)
       .map(o => withShop(db, o))
-      .filter(o => o.shop && (!city || o.shop.city === city))
+      .filter(o => o.shop && !o.shop.hidden && (!city || o.shop.city === city))
       .sort((a, b) => new Date(a.pickup_to) - new Date(b.pickup_to));
   },
 
@@ -204,11 +204,16 @@ export const localApi = {
     for (const k of ['name', 'type', 'city', 'address', 'phone']) if (!String(data[k] || '').trim()) fail('Заповніть усі поля магазину.');
     const cur = db.shops.find(x => x.owner_id === u.id);
     const row = { name: data.name.trim(), type: data.type, city: data.city, address: data.address.trim(), phone: data.phone.trim(), halal: !!data.halal };
+    if ('gmaps_url' in data) row.gmaps_url = String(data.gmaps_url || '').trim() || null;
+    if (data.terms && !cur?.terms_at) row.terms_at = now();
     if (!cur || cur.address !== row.address || cur.city !== row.city) Object.assign(row, await resolvePlace(row.address, row.city));
     const d2 = load(); let s = d2.shops.find(x => x.owner_id === u.id);
     if (!s) { s = { id: uid(), owner_id: u.id, shop_no: 101 + d2.shops.length, verified: false, created_at: now() }; d2.shops.push(s); }
     Object.assign(s, row); save(d2); return s;
   },
+
+  async acceptTerms() { const db = load(); const s = needShop(db); s.terms_at = now(); save(db); return s; },
+  async ownerSetShop(id, patch) { const db = load(); const s = db.shops.find(x => x.id === id); Object.assign(s, patch); save(db); return s; },
 
   async setShopPoint(lat, lng) {
     okPoint(lat, lng);
@@ -228,7 +233,7 @@ export const localApi = {
       id: uid(), shop_id: s.id, title: o.title.trim().slice(0, 80), description: String(o.description || '').trim().slice(0, 600),
       category: o.category, photo: o.photo || null, old_price: Math.round(o.old_price), price: o.free ? 0 : Math.round(o.price), free: !!o.free,
       halal: !!(o.halal && s.halal), weight_kg: Math.max(0.1, Number(o.weight_kg) || 1), qty_total: Math.round(o.qty), qty_left: Math.round(o.qty),
-      pickup_from: o.pickup_from, pickup_to: o.pickup_to, status: 'active', created_at: now(),
+      pickup_from: o.pickup_from, pickup_to: o.pickup_to, expires_on: o.expires_on || null, status: 'active', created_at: now(),
     };
     db.offers.push(off); save(db); return off;
   },
